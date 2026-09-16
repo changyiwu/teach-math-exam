@@ -281,7 +281,8 @@ print(json.dumps(out, ensure_ascii=False))
 
 ```python
 import sys
-sys.path.insert(0, r"C:\Users\<你>\.claude\skills\jh-math-exam\scripts")
+from pathlib import Path
+sys.path.insert(0, str(Path.home() / ".claude/skills/jh-math-exam/scripts"))
 from math_omml import plain_text
 plain_text("{frac(3,4)} 與 {(a+b)/2}")   # → '3/4 與 (a+b)/2'
 ```
