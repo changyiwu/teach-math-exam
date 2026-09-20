@@ -50,8 +50,8 @@ if (gh repo view "$USER/$REPO" 2>$null) {
 用 git 推送（一次 commit 全部檔案，比逐檔呼叫 API 快且乾淨）：
 
 ```powershell
-$SRC = ".\output"          # 遊戲 HTML 所在目錄
-$WORK = ".\.publish-tmp"
+$SRC = "./output"          # 遊戲 HTML 所在目錄
+$WORK = "./.publish-tmp"
 
 git clone "https://github.com/$USER/$REPO.git" $WORK 2>$null
 if (-not (Test-Path $WORK)) {
