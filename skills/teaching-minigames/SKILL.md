@@ -148,7 +148,7 @@ gh auth status          # 確認已登入
 $USER = gh api user --jq .login
 ```
 
-- 未安裝或未登入 → 提示使用者執行 `winget install --id GitHub.cli` 與 `gh auth login`
+- 未安裝或未登入 → 提示使用者執行 `winget install --id GitHub.cli`（macOS：`brew install gh`）與 `gh auth login`
 - **建立 repo 前必須先問使用者要公開還是私有**（免費帳號的 Pages 只支援公開）
 - **發佈前提醒**：GitHub Pages 是公開網頁，內容不得含學生真名或任何個資
 

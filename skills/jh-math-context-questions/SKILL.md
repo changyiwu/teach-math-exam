@@ -25,12 +25,13 @@ description: >
 ## Step 0：準備環境（每次對話第一次執行時做一次）
 
 ```powershell
-$PY = & "$HOME\.claude\skills\file-toolkit\scripts\ensure_env.ps1" | Select-Object -Last 1
-$GEN = "$HOME\.claude\skills\jh-math-exam\scripts\generate_exam_docx.py"
+$SKILLS = Join-Path $HOME '.claude/skills'
+$PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
+$GEN = Join-Path $SKILLS 'jh-math-exam/scripts/generate_exam_docx.py'
 if (-not (Test-Path $GEN)) {
     throw "本技能的 Word 匯出共用 jh-math-exam 的腳本，請確認該技能已安裝：$GEN"
 }
-New-Item -ItemType Directory -Force ".\output" | Out-Null
+New-Item -ItemType Directory -Force "./output" | Out-Null
 Write-Output "Python：$PY"
 ```
 
@@ -86,7 +87,7 @@ Write-Output "Python：$PY"
 針對本份題目實際寫一支驗算腳本（不要只是照抄範本），逐題比對 `answer` 與 `solution`：
 
 ```powershell
-& $PY ".\output\verify_math.py"
+& $PY "./output/verify_math.py"
 if ($LASTEXITCODE -ne 0) { throw "驗算未通過，請修正題目後重跑" }
 ```
 
@@ -98,7 +99,7 @@ if ($LASTEXITCODE -ne 0) { throw "驗算未通過，請修正題目後重跑" }
 
 ## Step 5：整理為 JSON
 
-存成 `.\output\exam_data.json`：
+存成 `./output/exam_data.json`：
 
 ```json
 {
@@ -180,7 +181,7 @@ if ($LASTEXITCODE -ne 0) { throw "驗算未通過，請修正題目後重跑" }
 ## Step 6：渲染幾何圖（JSON 中有 geometry 時才做）
 
 ```powershell
-$GEOM = "$HOME\.claude\skills\jh-math-geometry\scripts"
+$GEOM = Join-Path $HOME '.claude/skills/jh-math-geometry/scripts'
 
 & $PY -c @"
 import json, pathlib
@@ -204,26 +205,26 @@ if figs:
 print(f'需要渲染 {len(figs)} 張圖')
 "@
 
-if (Test-Path ".\output\geometry_spec.json") {
-    & $PY "$GEOM\geometry_renderer.py" ".\output\geometry_spec.json" ".\output\figures\"
+if (Test-Path "./output/geometry_spec.json") {
+    & $PY (Join-Path $GEOM 'geometry_renderer.py') "./output/geometry_spec.json" "./output/figures/"
     if ($LASTEXITCODE -ne 0) { throw "幾何圖渲染失敗" }
 }
 ```
 
 > **圖形 id 必須是 `q{N}_main`、`q{N}_sub1`、`q{N}_sub2`**，Step 8 靠這個對應回題目。
 >
-> **視覺確認**：用 Read 工具看 `.\output\figures\*.png` 再繼續。
+> **視覺確認**：用 Read 工具看 `./output/figures/*.png` 再繼續。
 
 ---
 
 ## Step 7：生情境插圖（JSON 中有 illustration 時才做）
 
 ```powershell
-$DRAW = "$HOME\.claude\skills\agent-draw\draw.py"
+$DRAW = Join-Path $HOME '.claude/skills/agent-draw/draw.py'
 if (-not (Test-Path $DRAW)) {
     Write-Warning "找不到 agent-draw 技能，略過情境插圖（幾何圖不受影響）"
 } else {
-    New-Item -ItemType Directory -Force ".\output\illustrations" | Out-Null
+    New-Item -ItemType Directory -Force "./output/illustrations" | Out-Null
     $jobs = & $PY -c @"
 import json, pathlib
 exam = json.loads(pathlib.Path('output/exam_data.json').read_text(encoding='utf-8'))
@@ -238,7 +239,7 @@ print(json.dumps(out, ensure_ascii=False))
 
     foreach ($j in $jobs) {
         & $PY $DRAW $j.prompt --size $j.size --quality $j.quality `
-              --name $j.id --outdir ".\output\illustrations"
+              --name $j.id --outdir "./output/illustrations"
     }
 }
 ```
@@ -253,14 +254,14 @@ print(json.dumps(out, ensure_ascii=False))
 ## Step 8：匯出 Word（必做）
 
 ```powershell
-& $PY $GEN ".\output\exam_data.json" ".\output" --figures-dir ".\output\figures"
+& $PY $GEN "./output/exam_data.json" "./output" --figures-dir "./output/figures"
 ```
 
 腳本會依 `geometry` 欄位在建構文件時直接插圖，不需要任何後處理。
-產出：`.\output\非選擇題_{單元}.docx`（第一頁起為題目，解析另起一頁）。
+產出：`./output/非選擇題_{單元}.docx`（第一頁起為題目，解析另起一頁）。
 
 情境插圖（`illustration`）若有產出，用 Read 工具確認後由你手動插入，或直接交付
-`.\output\illustrations\` 讓使用者自行取用。
+`./output/illustrations\` 讓使用者自行取用。
 
 最後把完整檔案路徑回報給使用者。
 
@@ -287,7 +288,7 @@ from math_omml import plain_text
 plain_text("{frac(3,4)} 與 {(a+b)/2}")   # → '3/4 與 (a+b)/2'
 ```
 
-輸出到 `.\output\非選擇題_{單元}_word風.png`。
+輸出到 `./output/非選擇題_{單元}_word風.png`。
 
 ---
 

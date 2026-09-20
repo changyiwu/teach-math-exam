@@ -15,7 +15,7 @@ gh auth status
 - 未登入或沒裝 `gh` → 停下來告訴使用者：
 
   > 發佈需要 GitHub CLI。請先在終端機執行 `gh auth login`（依畫面選 GitHub.com → HTTPS → 用瀏覽器登入）。
-  > 若尚未安裝，可執行 `winget install --id GitHub.cli`。
+  > 若尚未安裝：Windows `winget install --id GitHub.cli`，macOS `brew install gh`。
 
 取得帳號名稱：
 
@@ -72,7 +72,7 @@ Remove-Item $WORK -Recurse -Force
 檔案少的時候也可以直接用 API 逐檔上傳：
 
 ```powershell
-$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$SRC\index.html"))
+$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $SRC 'index.html')))
 $sha = gh api "repos/$USER/$REPO/contents/index.html" --jq .sha 2>$null
 $args = @("-f", "message=Update index.html", "-f", "content=$b64")
 if ($sha) { $args += @("-f", "sha=$sha") }
@@ -128,7 +128,7 @@ Pages 首次啟用約需 **1～3 分鐘**才會生效，必須主動告知使用
 
 | 狀況 | 處理方式 |
 |------|---------|
-| `gh` 未安裝 | 提示 `winget install --id GitHub.cli`，不要改用 PAT 繞過 |
+| `gh` 未安裝 | 提示 `winget install --id GitHub.cli`（macOS：`brew install gh`），不要改用 PAT 繞過 |
 | 未登入（`gh auth status` 失敗） | 提示 `gh auth login`，等使用者完成再繼續 |
 | repo 名稱已被占用 | 詢問使用者要更新現有 repo 還是換名 |
 | Pages 回傳 409 | 已啟用，忽略後續直接取 URL |

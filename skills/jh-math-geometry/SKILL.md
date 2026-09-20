@@ -26,21 +26,23 @@ description: >
 ## Step 0：準備環境
 
 ```powershell
-$PY = & "$HOME\.claude\skills\file-toolkit\scripts\ensure_env.ps1" | Select-Object -Last 1
-$GEOM = "$HOME\.claude\skills\jh-math-geometry\scripts"
-if (-not (Test-Path "$GEOM\geometry_renderer.py")) {
+$SKILLS = Join-Path $HOME '.claude/skills'
+$PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
+$GEOM = Join-Path $SKILLS 'jh-math-geometry/scripts'
+if (-not (Test-Path (Join-Path $GEOM 'geometry_renderer.py'))) {
     throw "找不到技能腳本，請確認 jh-math-geometry 已正確安裝：$GEOM"
 }
-New-Item -ItemType Directory -Force ".\output" | Out-Null
+New-Item -ItemType Directory -Force "./output" | Out-Null
 ```
 
 ### SVG → PNG 轉檔後端
 
 轉檔依序嘗試 **cairosvg → Edge/Chrome headless → Inkscape**。
 Windows 上 cairosvg 通常裝不起來，實際走的是瀏覽器截圖，不需要額外安裝任何東西。
+macOS 反過來：cairosvg 用 `brew install cairo` 就裝得起來，通常直接走它；瀏覽器那條也支援（腳本會去 `/Applications` 找 Edge／Chrome）。
 
 ```powershell
-& $PY "$GEOM\svg_to_image.py" --check
+& $PY (Join-Path $GEOM 'svg_to_image.py') --check
 ```
 
 三種後端都不可用時，渲染會**直接報錯並回傳非 0**，不會默默只產出 SVG。
@@ -60,7 +62,7 @@ Windows 上 cairosvg 通常裝不起來，實際走的是瀏覽器截圖，不�
 
 ## Step 2：建立圖形規格 JSON
 
-存成 `.\output\geometry_spec.json`：
+存成 `./output/geometry_spec.json`：
 
 ```json
 {
@@ -88,9 +90,9 @@ Windows 上 cairosvg 通常裝不起來，實際走的是瀏覽器截圖，不�
 ## Step 3：渲染
 
 ```powershell
-& $PY "$GEOM\geometry_renderer.py" ".\output\geometry_spec.json" ".\output\figures\"
+& $PY (Join-Path $GEOM 'geometry_renderer.py') "./output/geometry_spec.json" "./output/figures/"
 if ($LASTEXITCODE -ne 0) { throw "渲染失敗，請檢查上方錯誤訊息" }
-Get-ChildItem ".\output\figures"
+Get-ChildItem "./output/figures"
 ```
 
 輸出 `{id}.svg`、`{id}.png` 與 `manifest.json`（記錄所有輸出路徑）。
@@ -99,7 +101,7 @@ Get-ChildItem ".\output\figures"
 
 ## Step 4：視覺確認（必做）
 
-用 Read 工具查看 `.\output\figures\*.png`，確認標籤位置、比例、標記都正確。
+用 Read 工具查看 `./output/figures/*.png`，確認標籤位置、比例、標記都正確。
 有誤就調整 `config` 後重跑 Step 3。
 
 ---
@@ -107,7 +109,7 @@ Get-ChildItem ".\output\figures"
 ## Step 5：輸出
 
 ### 純圖片
-圖片已在 `.\output\figures\`，直接回報路徑即可。
+圖片已在 `./output/figures/`，直接回報路徑即可。
 
 ### 插入 Word
 

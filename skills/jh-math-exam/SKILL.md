@@ -26,12 +26,13 @@ description: >
 ## Step 0：準備環境（每次對話第一次執行時做一次）
 
 ```powershell
-$PY = & "$HOME\.claude\skills\file-toolkit\scripts\ensure_env.ps1" | Select-Object -Last 1
-$SKILL = "$HOME\.claude\skills\jh-math-exam"
-if (-not (Test-Path "$SKILL\scripts\generate_exam_docx.py")) {
+$SKILLS = Join-Path $HOME '.claude/skills'
+$PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
+$SKILL = Join-Path $SKILLS 'jh-math-exam'
+if (-not (Test-Path (Join-Path $SKILL 'scripts/generate_exam_docx.py'))) {
     throw "找不到技能腳本，請確認 jh-math-exam 已正確安裝：$SKILL"
 }
-New-Item -ItemType Directory -Force ".\output" | Out-Null
+New-Item -ItemType Directory -Force "./output" | Out-Null
 Write-Output "Python：$PY"
 ```
 
@@ -117,7 +118,7 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 
 ## Step 5：整理為 JSON
 
-存成 `.\output\exam_data.json`：
+存成 `./output/exam_data.json`：
 
 ```json
 {
@@ -249,7 +250,7 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 掃描 `exam_data.json`，若任何題目的 `geometry` 不為 `null`：
 
 ```powershell
-$GEOM = "$HOME\.claude\skills\jh-math-geometry\scripts"
+$GEOM = Join-Path $HOME '.claude/skills/jh-math-geometry/scripts'
 
 # 從 exam_data.json 抽出所有 geometry spec
 & $PY -c @"
@@ -275,8 +276,8 @@ if figs:
 print(f'需要渲染 {len(figs)} 張圖')
 "@
 
-if (Test-Path ".\output\geometry_spec.json") {
-    & $PY "$GEOM\geometry_renderer.py" ".\output\geometry_spec.json" ".\output\figures\"
+if (Test-Path "./output/geometry_spec.json") {
+    & $PY (Join-Path $GEOM 'geometry_renderer.py') "./output/geometry_spec.json" "./output/figures/"
     if ($LASTEXITCODE -ne 0) { throw "幾何圖渲染失敗，請檢查上方錯誤訊息" }
 }
 ```
@@ -284,7 +285,7 @@ if (Test-Path ".\output\geometry_spec.json") {
 > **圖形 id 必須照上面的命名規則**（`mc_1_fig`、`open_1_fig`、`open_1_1_fig`），
 > Step 7 靠這個對應回題目。
 >
-> **視覺確認**：用 Read 工具看 `.\output\figures\*.png`，確認標籤位置與比例正確再繼續。
+> **視覺確認**：用 Read 工具看 `./output/figures/*.png`，確認標籤位置與比例正確再繼續。
 > 有誤就修改 `exam_data.json` 的 `geometry.spec.config` 後重跑本步驟。
 >
 > 轉檔需要 Microsoft Edge 或 Chrome（腳本會自動找）。都沒有時會明確報錯而不是默默只產 SVG。
@@ -295,17 +296,17 @@ if (Test-Path ".\output\geometry_spec.json") {
 
 ```powershell
 # 模式 A：題目卷 + 答案卷 + 雙向細目表
-& $PY "$SKILL\scripts\generate_exam_docx.py" `
-      ".\output\exam_data.json" ".\output" --figures-dir ".\output\figures"
+& $PY (Join-Path $SKILL 'scripts/generate_exam_docx.py') `
+      "./output/exam_data.json" "./output" --figures-dir "./output/figures"
 
 # 模式 B：只產雙向細目表 + 審題報告
-& $PY "$SKILL\scripts\generate_exam_docx.py" `
-      ".\output\exam_data.json" ".\output" --blueprint-only
+& $PY (Join-Path $SKILL 'scripts/generate_exam_docx.py') `
+      "./output/exam_data.json" "./output" --blueprint-only
 ```
 
 腳本會依 `geometry` 欄位**在建構文件時直接把圖插到對應題目後方**，不需要任何後處理。
 
-產出檔案（都在 `.\output\`）：
+產出檔案（都在 `./output/`）：
 
 | 模式 | 檔案 |
 |------|------|
@@ -364,4 +365,4 @@ if (Test-Path ".\output\geometry_spec.json") {
 - **【幾何圖形】** 題目文字含「如圖」、「右圖」、「下圖」時，必須填 `geometry` 欄位
 - **【四邊形頂點】** 一律 A 左下、B 右下、C 右上、D 左上。梯形的平行邊是 **AB 與 DC**，
   題幹要寫「AB∥DC」；寫成「AD∥BC」會與圖形矛盾
-- 產出後務必回報 `.\output\` 下的完整檔案路徑
+- 產出後務必回報 `./output/` 下的完整檔案路徑

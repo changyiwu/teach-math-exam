@@ -66,12 +66,16 @@
 
 ## 技能開發約定
 
-- **執行環境鎖定 Windows + Claude Code**。SKILL.md 不得再出現 `/home/claude`、
+- **執行環境鎖定 Claude Code；平台 Windows 與 macOS 皆支援**（一律 pwsh 7）。
+  SKILL.md 不得再出現 `/home/claude`、
   `/mnt/user-data/outputs`、`/mnt/skills/user`、`present_files`、`pip --break-system-packages`
   這類 claude.ai 沙箱專屬寫法
 - **Python 一律用 file-toolkit 共用環境**：`ensure_env.ps1` 的最後一行輸出即直譯器路徑，
   不要用系統 `python`，也不要每個技能各建一個 venv
-- **產出一律寫到當前工作目錄的 `output\`**
+- **產出一律寫到當前工作目錄的 `output/`**（正斜線；反斜線在 macOS 是檔名字元，不是分隔符）
+- **組路徑一律 `Join-Path`，不要把變數直接接上反斜線**。`"$HOME" + 反斜線 + ".claude"` 這種寫法在 macOS 上會組出一個名字裡帶反斜線的項目，
+  `Test-Path` 靜默回 `False`，技能只會說「找不到腳本」。完整說明見 `cross-device-agent-skills/platform.md` 第 5 坑，
+  `python ../cross-device-agent-skills/tools/check-platform.py .` 會擋住它長回來
 - **腳本共用不複製**：`generate_exam_docx.py`／`math_omml.py` 只放在 `jh-math-exam/scripts/`，
   其他技能透過絕對路徑呼叫。同一份邏輯不要在兩個技能各留一份
 - **參數表只留一份**：幾何參數的唯一來源是 `jh-math-geometry/references/figure-catalog.md`，

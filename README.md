@@ -39,10 +39,10 @@ jh-math-context-questions ──> jh-math-exam     （共用 Word 匯出與 OMML
 git clone https://github.com/changyiwu/teaching-exam-skills.git
 ```
 
-安裝到 Claude Code 的個人技能目錄：
+安裝到 Claude Code 的個人技能目錄（Windows 與 macOS 同一行指令）：
 
 ```powershell
-Copy-Item teaching-exam-skills\skills\* $HOME\.claude\skills\ -Recurse -Force
+Copy-Item teaching-exam-skills/skills/* (Join-Path $HOME '.claude/skills') -Recurse -Force
 ```
 
 ---
@@ -51,12 +51,12 @@ Copy-Item teaching-exam-skills\skills\* $HOME\.claude\skills\ -Recurse -Force
 
 | 需求 | 說明 |
 |------|------|
-| **Python 環境** | 沿用 `file-toolkit` 技能的共用環境（`%LOCALAPPDATA%\file-toolkit\.venv`）。各技能的 Step 0 會呼叫 `ensure_env.ps1` 自動建立，含 `python-docx`、`lxml`、`pillow` 等。 |
-| **SVG → PNG** | 依序嘗試 cairosvg → **Edge/Chrome headless** → Inkscape。Windows 上實際走瀏覽器截圖，不需額外安裝；三者皆無時會明確報錯，不會默默只產 SVG。 |
-| **GitHub 發佈** | `teaching-minigames` 使用 GitHub CLI（`winget install --id GitHub.cli` 後 `gh auth login`）。**不需要 Personal Access Token。** |
+| **Python 環境** | 沿用 `file-toolkit` 技能的共用環境（Windows：`%LOCALAPPDATA%\file-toolkit\.venv`；macOS：`~/.local/share/file-toolkit/.venv`）。各技能的 Step 0 會呼叫 `ensure_env.ps1` 自動建立，含 `python-docx`、`lxml`、`pillow` 等。 |
+| **SVG → PNG** | 依序嘗試 cairosvg → **Edge/Chrome headless** → Inkscape。Windows 上 cairosvg 裝不起來，實際走瀏覽器截圖；macOS 上 cairosvg（`brew install cairo`）通常是主力，瀏覽器那條會去 `/Applications` 找。三者皆無時會明確報錯，不會默默只產 SVG。 |
+| **GitHub 發佈** | `teaching-minigames` 使用 GitHub CLI（Windows `winget install --id GitHub.cli`／macOS `brew install gh`，之後 `gh auth login`）。**不需要 Personal Access Token。** |
 | **生圖**（選配） | `jh-math-context-questions` 的情境插圖需要 `agent-draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
 
-所有產出一律寫到**當前工作目錄的 `output\`**。
+所有產出一律寫到**當前工作目錄的 `output/`**。
 
 ---
 
