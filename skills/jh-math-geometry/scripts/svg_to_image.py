@@ -4,7 +4,7 @@ svg_to_image.py — SVG → PNG 轉換工具
 
 轉換器依序嘗試（前者不可用才往下走）：
   1. cairosvg      —— 最快、品質最好；Linux/macOS 常見，Windows 需要 cairo DLL 通常裝不起來
-  2. Edge / Chrome —— headless 截圖，Windows 上的主力路徑，不需額外安裝
+  2. Edge / Chrome —— headless 截圖，Windows 上的主力路徑，不需額外安裝；macOS 的瀏覽器在 .app 套件裡，見 BROWSERS
   3. Inkscape      —— 若使用者本來就有裝
 
 Usage (CLI):
@@ -22,12 +22,28 @@ from pathlib import Path
 
 BASE_DPI = 96.0
 
-BROWSERS = [
-    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-]
+# 候選路徑依平台分開。**macOS 的 Chrome／Edge 裝在 .app 套件裡，執行檔不在 PATH 上**，
+# 所以 mac 若只靠下面的 shutil.which 等於完全沒有 browser 後端——會靜默退回只剩 cairosvg，
+# cairosvg 沒裝就三個後端全滅。which 的指令名也兩平台不同，一起分開列。
+if sys.platform == "darwin":
+    BROWSERS = [
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        str(Path.home() / "Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+        str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+    ]
+    BROWSER_CMDS = ("microsoft-edge", "google-chrome", "chromium")
+else:
+    # Windows 的絕對路徑在 Linux 上不會存在，直接跳過，所以這一支同時涵蓋 Windows 與 Linux。
+    BROWSERS = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    BROWSER_CMDS = ("msedge", "chrome", "chromium", "google-chrome",
+                    "chromium-browser", "microsoft-edge")
 
 
 # ══════════════════════════════════════════════════════
@@ -41,7 +57,7 @@ def _find_browser():
     for p in BROWSERS:
         if Path(p).exists():
             return p
-    for name in ("msedge", "chrome", "chromium", "google-chrome"):
+    for name in BROWSER_CMDS:
         found = shutil.which(name)
         if found:
             return found
