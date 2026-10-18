@@ -26,6 +26,11 @@ MATH_FONT = "Cambria Math"
 SYMBOLS = [("<=", "≤"), (">=", "≥"), ("!=", "≠"), ("*", "×")]
 
 
+def algebra_notation(text):
+    """只省略數字係數與單一英文字母間的乘號；保留 17×3、x×3。"""
+    return re.sub(r'(?<=\d)\s*[*×]\s*([A-Za-z])(?![A-Za-z])', r'\1', text)
+
+
 # ══════════════════════════════════════════════════════
 # 一、把混合文字切成「純文字 / 數學式」片段
 # ══════════════════════════════════════════════════════
@@ -211,16 +216,20 @@ def _el(parent, tag, ns=M_NS):
 
 
 def _math_run(parent, text):
+    text = algebra_notation(text)
     for a, b in SYMBOLS:
         text = text.replace(a, b)
-    r = _el(parent, "r")
-    rpr = etree.SubElement(r, f"{{{W_NS}}}rPr")
-    fonts = etree.SubElement(rpr, f"{{{W_NS}}}rFonts")
-    fonts.set(f"{{{W_NS}}}ascii", MATH_FONT)
-    fonts.set(f"{{{W_NS}}}hAnsi", MATH_FONT)
-    t = _el(r, "t")
-    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    t.text = text
+    for chunk in re.findall(r'[a-z]|[^a-z]+', text):
+        r = _el(parent, "r")
+        pr = _el(r, "rPr")
+        _el(pr, "sty").set(f"{{{M_NS}}}val", "i" if re.fullmatch('[a-z]', chunk) else "p")
+        rpr = etree.SubElement(r, f"{{{W_NS}}}rPr")
+        fonts = etree.SubElement(rpr, f"{{{W_NS}}}rFonts")
+        fonts.set(f"{{{W_NS}}}ascii", MATH_FONT)
+        fonts.set(f"{{{W_NS}}}hAnsi", MATH_FONT)
+        t = _el(r, "t")
+        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        t.text = chunk
 
 
 def _render(parent, nodes):
@@ -267,7 +276,7 @@ def _render(parent, nodes):
 def build_omath(expr):
     """數學式字串 → <m:oMath> 元素。"""
     root = etree.Element(f"{{{M_NS}}}oMath", nsmap=NSMAP)
-    _render(root, parse(expr))
+    _render(root, parse(algebra_notation(expr)))
     return root
 
 
@@ -297,8 +306,15 @@ def add_rich_text(paragraph, text, font="標楷體", size=12, bold=False):
                 if k:
                     paragraph.add_run().add_break()
                 if chunk:
-                    run = paragraph.add_run(chunk)
-                    set_run_font(run, font, size, bold)
+                    # 普通文字中的單字母未知數也使用數學字型；不拆英文單字。
+                    for part in re.split(r'(?<![A-Za-z])([a-z])(?![A-Za-z])', algebra_notation(chunk)):
+                        if not part:
+                            continue
+                        run = paragraph.add_run(part)
+                        variable = bool(re.fullmatch('[a-z]', part))
+                        set_run_font(run, MATH_FONT if variable else font, size, bold)
+                        if variable:
+                            run.italic = True
     return paragraph
 
 
@@ -333,7 +349,7 @@ def plain_text(text):
     parts = []
     for is_math, content in split_segments(str(text or "")):
         parts.append(flatten(parse(content)) if is_math else content)
-    return "".join(parts)
+    return algebra_notation("".join(parts))
 
 
 if __name__ == "__main__":

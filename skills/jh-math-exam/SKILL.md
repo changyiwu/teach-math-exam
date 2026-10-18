@@ -14,7 +14,7 @@ description: >
 ## 技能概覽
 
 **模式 A：出題**（全新命題）
-需求訪談 → 規劃雙向細目表 → 生成題目 → 幾何配圖 → 產出題目卷、答案卷、雙向細目表
+需求確認 → 章內重點配分規劃 → 80%教材改編＋20%網路候選題 → 使用者審閱網路題 → 幾何配圖及驗算 → B4雙欄題目卷、答案卷、雙向細目表
 
 **模式 B：審題**（審核現有考卷）
 接收考卷 → 逐題判定 Bloom 層次 → 輸出分級報告 → 產出雙向細目表、審題報告
@@ -37,7 +37,7 @@ Write-Output "Python：$PY"
 ```
 
 `$PY` 是共用環境的直譯器路徑（含 python-docx、lxml），後續一律用它執行腳本，不要用系統 `python`。
-所有產出都放在**當前工作目錄的 `output\`**。
+所有產出都放在**當前工作目錄的 `output/`**。
 
 ---
 
@@ -48,15 +48,28 @@ Write-Output "Python：$PY"
 | 年級 | 七年級 / 八年級 / 九年級 |
 | 學期 & 次別 | 第一學期第三次段考 等 |
 | 考試範圍 | 章節名稱 + 版本（康軒 / 翰林 / 南一） |
-| 題型需求 | 選擇題幾題、非選擇題幾題、配分 |
+| 題型需求 | 選擇題、填充題、計算題的題數與配分 |
 | 難度目標 | 參考 Bloom 各級比例，或教師自訂 |
 | 模式 | **A. 出題** / **B. 審題** |
+
+**未另行指定時的預設配置**：選擇題 10 題 × 4 分、填充題 10 題 × 4 分、計算題 5 題 × 4 分，總分 100 分。
+使用者也可將計算題改成 4 題 × 5 分，其餘不變。計算題使用既有 `open_questions`，可含一個或多個子題。
+題數與配分若已明確提供，直接採用；未指定的考試時間可先用 45 分鐘規劃並告知。
+
+**教材對照**：只有範圍時可先依課綱規劃，不假裝已讀過課本。提供教材時先整理節次、能力點、已教解法與排除內容，
+保留來源檔名與頁碼。課本與習作的數值組合、題幹及圖形條件均須比對，不可直接沿用原題或只替換姓名。
+文字萃取異常時改看頁面影像；未取得的教材明確標記尚未核對。資料缺口與各題對照紀錄留在當次 `output/`，不存入技能原始碼。
 
 ---
 
 ## Step 2：建立雙向細目表規劃
 
 讀取 `references/shuangxiang-table.md` 取得表格結構規範。
+命題前必讀 `references/source-planning.md`：先列章內各能力點的目標配分、題型、認知層次與理由，
+不可只平均分三個章節。每題指定一個 `primary_topic`，產出後核對主重點的實際配分與漏考項目。
+預設來源按配分為教材80%、網路20%；網路候選題須先完整呈現並取得使用者明確同意，再納入正式卷。
+教材題與網路題合併在同一份全卷重點規劃表驗收；80／20只區分來源，不可分開配置重點後拼接。
+未審閱前可完成規劃及標示待審的預覽，不得輸出或宣稱完成正式卷。
 
 - **縱軸**：教材章節（依考試範圍列出各節名稱）× 試題型式
 - **橫軸**：認知層次（記憶 / 了解 / 應用 / 思考判斷）
@@ -102,6 +115,9 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 - 建議最後一題為情境應用題（第3-4級）
 - 同一大題的各小題不應全部落在同一層次
 
+**填充題格式規範**：使用 `fill_questions`，每題含 `number`、`section`、`bloom_level`、`points`、`question`、`answer`、`solution`。
+題幹保留明確作答空格；一道題若有多個空格，答案需依空格順序列出，並說明給分方式。
+
 ---
 
 ## Step 4：認知層次審查（模式 B）
@@ -120,80 +136,94 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 
 存成 `./output/exam_data.json`：
 
+以下為 **24 分的結構示例**，展示三種題型；實際出卷依上面的 100 分預設或使用者指定配置。
+
 ```json
 {
-  "school_year": "114",
+  "school_year": "115",
   "semester": "1",
   "exam_number": "3",
-  "grade": "七年級",
-  "teacher": "王小明",
+  "teacher": "",
   "version": "康軒",
-  "scope": "康軒版第一冊 1-1～2-2",
-  "mc_scoring": "1~4題每題4分、5~8題每題3分，共28分",
+  "grade": "七年級",
+  "scope": "康軒七上第3章",
+  "total_points": 24,
+  "scope_sections": [
+    "3-1 代數式的化簡",
+    "3-2 一元一次方程式",
+    "3-3 應用問題"
+  ],
+  "expected_counts": {
+    "mc": 2,
+    "fill": 1,
+    "open": 1
+  },
+  "mc_scoring": "1~2題每題4分，共8分",
   "mc_questions": [
     {
       "number": 1,
-      "section": "1-1 負數與數線",
+      "section": "3-1 代數式的化簡",
       "bloom_level": "第1級（記憶）",
       "points": 4,
-      "question": "下列何者為負數？",
-      "options": { "A": "3", "B": "-5", "C": "0", "D": "7" },
+      "question": "代數式 {7*x+11} 的常數項是何者？",
+      "options": {
+        "A": "7",
+        "B": "11",
+        "C": "x",
+        "D": "{7*x}"
+      },
       "answer": "B",
-      "solution": "負號在前的數為負數。",
-      "geometry": null
+      "solution": "常數項為 11。"
     },
     {
       "number": 2,
-      "section": "2-1 一元一次方程式",
+      "section": "3-2 一元一次方程式",
       "bloom_level": "第3級（應用）",
       "points": 4,
-      "question": "如圖，直角三角形 ABC 中，AC = 3、BC = 4，求 {AB^2}。",
-      "options": { "A": "25", "B": "16", "C": "9", "D": "12" },
+      "question": "解方程式 {4*x+9=37}。",
+      "options": {
+        "A": "7",
+        "B": "9",
+        "C": "11",
+        "D": "13"
+      },
       "answer": "A",
-      "solution": "{AC^2} + {BC^2} = 9 + 16 = 25",
-      "geometry": {
-        "caption": "圖一",
-        "spec": {
-          "type": "triangle",
-          "config": {
-            "subtype": "right",
-            "vertex_labels": ["A", "B", "C"],
-            "right_angle_at": "C",
-            "side_labels": { "AC": "3", "BC": "4", "AB": "?" }
-          },
-          "canvas": { "width": 250, "height": 200 }
-        }
-      }
+      "solution": "{4*x=28}，故 x=7。"
+    }
+  ],
+  "fill_questions": [
+    {
+      "number": 1,
+      "section": "3-1 代數式的化簡",
+      "bloom_level": "第3級（應用）",
+      "points": 4,
+      "question": "化簡 {9*x-4*x}＝________。",
+      "answer": "{5*x}",
+      "solution": "合併係數得 {5*x}。"
     }
   ],
   "open_questions": [
     {
       "number": 1,
-      "section": "2-1 一元一次方程式",
+      "section": "3-3 應用問題",
       "total_points": 12,
-      "context": "如圖，梯形 ABCD 中，AB∥DC，AB = 10，DC = 6，高為 4。",
-      "geometry": {
-        "caption": "圖二",
-        "spec": {
-          "type": "quadrilateral",
-          "config": {
-            "subtype": "trapezoid",
-            "vertex_labels": ["A", "B", "C", "D"],
-            "side_labels": { "AB": "10", "DC": "6" },
-            "show_height": true,
-            "height_label": "4"
-          },
-          "canvas": { "width": 280, "height": 220 }
-        }
-      },
+      "context": "每個書袋同價，買若干個書袋加運費17元，共付95元。每個書袋13元。",
       "sub_questions": [
         {
           "label": "(1)",
+          "bloom_level": "第2級（理解）",
+          "points": 6,
+          "question": "設買了x個，列出方程式。",
+          "answer": "{13*x+17=95}",
+          "solution": "總價是單價乘數量再加運費，故 {13*x+17=95}。"
+        },
+        {
+          "label": "(2)",
           "bloom_level": "第3級（應用）",
-          "points": 5,
-          "question": "求梯形 ABCD 的面積。",
-          "answer": "32",
-          "solution": "{(6+10)/2} × 4 = 32"
+          "points": 6,
+          "question": "求書袋數量。",
+          "answer": "6個",
+          "solution": "{13*x=78}，故買6個。"
         }
       ]
     }
@@ -205,7 +235,10 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 
 - **`points`（選擇題）**：建議每題都填。沒填時腳本會嘗試解析 `mc_scoring`
   （支援「1~7題每題4分、8~16題每題3分」與「每題4分」兩種寫法），
-  兩者都取不到會印警告並以 0 計入細目表
+  兩者都取不到、互相矛盾或配分不是正數時會停止，不再以 0 分繼續
+- **`total_points`（最外層）**：正式匯出必填；選擇、填充、計算小題的配分總和必須相符
+- **`expected_counts`**：如 `{"mc":10,"fill":10,"open":5}`，用來核對預定題數；計算題改為 4 題時同步修改
+- **`scope_sections`**：允許使用的完整節次名稱，逐題比對，避免歸錯章節；題意是否真的符合該單元仍須人工審查
 - **`geometry`**：不需要圖形時設為 `null`。可放在選擇題每題、非選大題（整題共用一圖）
   或子題（各自有圖）。參數見 `references/figure-catalog.md`（jh-math-geometry 技能）
 - **`bloom_level`**：非選擇題必須填在**每個子題**上，大題層級不填
@@ -217,23 +250,14 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 ```json
 "review_report": {
   "mc_rows": [
-    { "number": 1, "summary": "辨認負數", "section": "1-1 負數與數線",
+    { "number": 1, "summary": "辨認常數項", "section": "3-1 代數式的化簡",
       "bloom_level": "第1級（記憶）", "answer": "B", "reason": "僅需辨認定義特徵" }
   ],
   "open_rows": [
-    { "big_number": 1, "label": "(1)", "summary": "求梯形面積",
-      "section": "2-1 一元一次方程式", "bloom_level": "第3級（應用）",
-      "points": 5, "reason": "單一公式代入" }
+    { "big_number": 1, "label": "(1)", "summary": "將書袋費用關係列成方程式",
+      "section": "3-3 應用問題", "bloom_level": "第2級（理解）",
+      "points": 6, "reason": "由文字數量關係轉為代數表徵" }
   ],
-  "section_stats": [
-    { "section": "1-1 負數與數線", "mc_pts": 8, "open_pts": 0, "total": 8 }
-  ],
-  "bloom_stats": {
-    "第1級（記憶）": { "pts": 4, "pct": 10, "suggest": 10 },
-    "第2級（理解）": { "pts": 7, "pct": 18, "suggest": 20 },
-    "第3級（應用）": { "pts": 16, "pct": 40, "suggest": 40 },
-    "第4級（分析）": { "pts": 13, "pct": 32, "suggest": 30 }
-  },
   "quality_issues": [
     { "type": "error", "title": "配分說明有誤（需修正）",
       "description": "說明欄寫「1~4題每題4分」，但第 4 題實際配 3 分。" }
@@ -242,6 +266,18 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 ```
 
 `type` 可填 `error`（❌）或 `warning`（⚠️）。
+填充題的逐題審查放在 `fill_rows`，欄位與 `mc_rows` 相同；配分與認知層次統計由題目資料重新計算，不需手填。
+
+---
+
+## Step 5.5：結構與配分檢查（必做）
+
+```powershell
+& $PY (Join-Path $SKILL 'scripts/generate_exam_docx.py') "./output/exam_data.json" "./output" --validate-only
+if ($LASTEXITCODE -ne 0) { throw "題號、選項、單元或配分檢查失敗" }
+```
+
+此步不建立 Word，也不表示答案已驗算。詳細檢查範圍與驗算報告格式見 `references/verification.md`。
 
 ---
 
@@ -265,6 +301,8 @@ def collect(block, fid):
                      'canvas': s.get('canvas', {'width': 280, 'height': 220})})
 for q in exam.get('mc_questions', []):
     collect(q, f\"mc_{q['number']}_fig\")
+for q in exam.get('fill_questions', []):
+    collect(q, f\"fill_{q['number']}_fig\")
 for q in exam.get('open_questions', []):
     collect(q, f\"open_{q['number']}_fig\")
     for sq in q.get('sub_questions', []):
@@ -292,12 +330,27 @@ if (Test-Path "./output/geometry_spec.json") {
 
 ---
 
+## Step 6.5：逐題數學驗算（必做，審題模式除外）
+
+依 `references/verification.md` 為本份考卷撰寫 `output/verify_math.py`。從題幹條件獨立重算，核對答案、解析步驟及每個選項；
+不能只把答案抄成 expected 值再比對自己。通過後輸出 `output/math_check.json`，須涵蓋所有選擇題、填充題及計算子題。
+
+```powershell
+& $PY "./output/verify_math.py"
+if ($LASTEXITCODE -ne 0) { throw "答案、解析或選項驗算失敗" }
+```
+
+報告綁定整份題目 JSON 的 SHA-256；題幹、答案、解析或配圖規格修改後必須重新驗算。
+
+---
+
 ## Step 7：產出 Word（必做）
 
 ```powershell
 # 模式 A：題目卷 + 答案卷 + 雙向細目表
 & $PY (Join-Path $SKILL 'scripts/generate_exam_docx.py') `
-      "./output/exam_data.json" "./output" --figures-dir "./output/figures"
+      "./output/exam_data.json" "./output" --figures-dir "./output/figures" --math-report "./output/math_check.json"
+if ($LASTEXITCODE -ne 0) { throw "考卷匯出失敗" }
 
 # 模式 B：只產雙向細目表 + 審題報告
 & $PY (Join-Path $SKILL 'scripts/generate_exam_docx.py') `
@@ -320,6 +373,9 @@ if (Test-Path "./output/geometry_spec.json") {
 ---
 
 ## 數學標記語法
+
+考卷預設 B4 直式雙欄，卷頭跨欄；未知數使用 Cambria Math 斜體，數字係數接英文字母省略乘號（`17*x`／`17×x` 顯示為 `17x`）。
+`17*3` 仍顯示 `17×3`，避免誤讀為173。普通文字中的單字母未知數與題圖標籤也須採數學字型。
 
 在題目文字中用大括號 `{}` 包住數學式，腳本會轉為 Word OMML 正確顯示：
 
@@ -348,6 +404,7 @@ if (Test-Path "./output/geometry_spec.json") {
 | Bloom 四級判定準則、判定流程、常見誤判 | `references/bloom-taxonomy.md` |
 | 雙向細目表結構與填寫規則 | `references/shuangxiang-table.md` |
 | 題目卷 / 答案卷版面規格 | `references/exam-format.md` |
+| 結構檢查、獨立驗算與教材對照紀錄 | `references/verification.md` |
 | 108課綱三年完整章節、學習內容代碼（N/A/S/F/D） | `references/jh-math-curriculum.md` |
 | 幾何圖形完整參數與範例 | `jh-math-geometry` 技能的 `references/figure-catalog.md` |
 

@@ -5,7 +5,7 @@
 可供 Claude Code 或任何支援 Agent Skills 規格的 AI agent 直接讀取使用。
 
 > 所有技能皆以**繁體中文**設計，題目對齊修訂版 Bloom 認知層次。
-> 執行環境鎖定 **Windows + Claude Code**（PowerShell 語法）。
+> 執行環境為 **Claude Code，支援 Windows 與 macOS**（PowerShell 7）。
 
 ---
 
@@ -57,6 +57,20 @@ Copy-Item teaching-exam-skills/skills/* (Join-Path $HOME '.claude/skills') -Recu
 | **生圖**（選配） | `jh-math-context-questions` 的情境插圖需要 `agent-draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
 
 所有產出一律寫到**當前工作目錄的 `output/`**。
+
+## 段考預設與驗收
+
+未另行指定時：選擇題 10 題 × 4 分、填充題 10 題 × 4 分、計算題 5 題 × 4 分（可改為 4 題 × 5 分），總分 100 分。
+提供版本與章節可先規劃；提供課本與習作後，會對照能力點及原題數值組合，重新設計題目。
+命題前先列章內重點配分表；預設按配分80%取材自提供教材、20%取材自公開網路資料或題庫。
+兩類來源合併驗收全卷重點比例，不能各自配比後拼接。
+網路候選題需附完整題目、答案及來源，經使用者審閱同意才納入正式卷；改題後須重審。
+題目與教師答案卷預設B4直式雙欄，未知數採Cambria Math斜體，數字係數後的乘號省略。
+來源及重點規劃欄位見 [來源規劃](skills/jh-math-exam/references/source-planning.md)。
+
+匯出器先檢查題號、選項、單元、題數與總分；缺分、矛盾配分或缺圖直接停止。
+正式匯出還需本份考卷的逐題驗算報告 `--math-report`，題目修改後舊報告失效。
+結構檢查不等於數學正確，方法與限制見 [驗收流程](skills/jh-math-exam/references/verification.md)。
 
 ---
 

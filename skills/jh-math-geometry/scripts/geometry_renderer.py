@@ -21,6 +21,7 @@ Output:
 """
 
 import math, json, sys
+import re
 from html import escape
 import unicodedata
 from pathlib import Path
@@ -155,9 +156,14 @@ class SVGCanvas:
         if bold:   style.append('font-weight:bold')
         if italic: style.append('font-style:italic')
         sa = f' style="{";".join(style)}"' if style else ''
+        label = re.sub(r'(?<=\d)\s*[*×]\s*([a-z])(?![A-Za-z])', r'\1', str(s))
+        chunks = re.split(r'(?<![A-Za-z])([a-z])(?![A-Za-z])', label)
+        label_xml = ''.join(
+            f'<tspan font-family="Cambria Math, STIX Two Math, serif" font-style="italic">{escape(c)}</tspan>'
+            if re.fullmatch('[a-z]', c) else escape(c) for c in chunks)
         self._els.append(
             f'<text x="{self._f(x)}" y="{self._f(y)}" font-size="{size}" '
-            f'text-anchor="{anchor}" dominant-baseline="middle" fill="{color}"{sa}>{escape(str(s))}</text>'
+            f'text-anchor="{anchor}" dominant-baseline="middle" fill="{color}"{sa}>{label_xml}</text>'
         )
 
     @staticmethod
@@ -187,7 +193,7 @@ class SVGCanvas:
                     nx, ny = direction
                     # 先沿外法線移動；必要時沿邊平移，仍留在圖形外側。
                     candidates += [(x+nx*d-ny*t, y+ny*d+nx*t)
-                                   for d in (0, 6, 12, 18, 24, 32)
+                                   for d in (0, 3, 6, 9, 12, 18, 24, 32)
                                    for t in (0, -8, 8, -16, 16, -24, 24, -36, 36)]
                 else:
                     candidates += [(x+dx, y+dy) for r in (8, 16, 24, 32, 40)

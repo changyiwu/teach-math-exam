@@ -154,6 +154,7 @@ print('output/geometry.pptx')
 | 呼叫端 | id 命名規則 |
 |--------|------------|
 | `jh-math-exam` 選擇題 | `mc_{題號}_fig` |
+| `jh-math-exam` 填充題 | `fill_{題號}_fig` |
 | `jh-math-exam` 非選大題 | `open_{題號}_fig` |
 | `jh-math-exam` 非選子題 | `open_{題號}_{子題號}_fig` |
 | `jh-math-context-questions` 大題 | `q{題號}_main` |

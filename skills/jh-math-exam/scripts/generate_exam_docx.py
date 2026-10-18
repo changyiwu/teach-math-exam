@@ -4,7 +4,7 @@ generate_exam_docx.py — 段考試卷 / 情境非選題 Word 產生器
 
 同時支援兩種 JSON schema，依欄位自動判斷：
 
-  A. 段考卷（jh-math-exam）          有 mc_questions 或 open_questions
+  A. 段考卷（jh-math-exam）          有 mc_questions、fill_questions 或 open_questions
      產出：題目卷、答案卷（教師版）、雙向細目表〔、審題報告〕
   B. 情境非選題（jh-math-context-questions）  有 questions
      產出：單一份 Word（題目 + 解析）
@@ -27,6 +27,7 @@ from pathlib import Path
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.section import WD_SECTION_START
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -34,6 +35,8 @@ from docx.shared import Cm, Pt
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from math_omml import add_rich_text, plain_text, set_run_font  # noqa: E402
+from exam_validation import (ExamValidationError, norm_bloom, parse_mc_scoring, mc_points,
+                             validate_exam, validate_math_report)
 
 BODY_FONT = "標楷體"
 NOTE_FONT = "新細明體"
@@ -49,55 +52,6 @@ BLOOM_SUGGEST = [10, 20, 40, 30]
 # 共用工具
 # ══════════════════════════════════════════════════════
 
-def norm_bloom(value):
-    """各種寫法的 bloom_level → 0..3；判不出來回傳 None。"""
-    if value is None:
-        return None
-    s = str(value)
-    m = re.search(r"第\s*([1-4])\s*級", s)
-    if m:
-        return int(m.group(1)) - 1
-    for idx, keys in enumerate((("記憶", "記憶性"), ("理解", "了解"),
-                                ("應用", "運用"), ("分析", "思考判斷", "綜合", "評鑑"))):
-        if any(k in s for k in keys):
-            return idx
-    return None
-
-
-def parse_mc_scoring(text, count):
-    """'1~7題每題4分、8~16題每題3分' → {題號: 配分}。解析不出來回傳 {}。"""
-    if not text:
-        return {}
-    points = {}
-    for a, b, p in re.findall(r"(\d+)\s*[~～\-–至]\s*(\d+)\s*題[^0-9]*?(\d+)\s*分", str(text)):
-        for q in range(int(a), int(b) + 1):
-            points[q] = int(p)
-    if not points:
-        m = re.search(r"每題\s*(\d+)\s*分", str(text))
-        if m:
-            points = {q: int(m.group(1)) for q in range(1, count + 1)}
-    return points
-
-
-def mc_points(data):
-    """回傳 {題號: 配分}：優先用各題自帶的 points，其次解析 mc_scoring。"""
-    questions = data.get("mc_questions", []) or []
-    explicit = {q["number"]: q["points"] for q in questions if q.get("points")}
-    if len(explicit) == len(questions) and questions:
-        return explicit
-    parsed = parse_mc_scoring(data.get("mc_scoring"), len(questions))
-    result = {}
-    for q in questions:
-        n = q["number"]
-        val = explicit.get(n) or parsed.get(n)
-        if val is None:
-            print(f"[WARN] 選擇題第 {n} 題無配分：請在該題加 points 欄位，"
-                  f"或讓 mc_scoring 可被解析（如「1~16題每題4分」）")
-            val = 0
-        result[n] = val
-    return result
-
-
 def setup_page(doc, width_cm, height_cm, margins_cm, lr=None):
     sec = doc.sections[0]
     sec.page_width = Cm(width_cm)
@@ -111,12 +65,25 @@ def setup_page(doc, width_cm, height_cm, margins_cm, lr=None):
     return sec
 
 
+def start_exam_columns(doc):
+    """保留全寬卷頭，以連續分節開始 B4 雙欄內文。"""
+    sec = doc.add_section(WD_SECTION_START.CONTINUOUS)
+    cols = sec._sectPr.find(qn('w:cols'))
+    if cols is None:
+        cols = OxmlElement('w:cols')
+        sec._sectPr.append(cols)
+    cols.set(qn('w:num'), '2')
+    cols.set(qn('w:space'), '454')  # 0.8 cm
+    cols.set(qn('w:equalWidth'), '1')
+
+
 def para(doc, text="", size=BODY_SIZE, bold=False, align=None,
          font=BODY_FONT, space_after=4, rich=False):
     p = doc.add_paragraph()
     if align is not None:
         p.alignment = align
     p.paragraph_format.space_after = Pt(space_after)
+    p.paragraph_format.keep_together = True
     if text:
         if rich:
             add_rich_text(p, text, font=font, size=size, bold=bold)
@@ -151,11 +118,13 @@ def insert_figure(doc, png_path, caption="", width_cm=5.5):
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.keep_with_next = True
     p.add_run().add_picture(str(png_path), width=Cm(width_cm))
     if caption:
         cp = doc.add_paragraph()
         cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
         cp.paragraph_format.space_after = Pt(4)
+        cp.paragraph_format.keep_with_next = True
         run = cp.add_run(caption)
         set_run_font(run, BODY_FONT, 9)
         run.italic = True
@@ -170,12 +139,13 @@ class Figures:
 
     def add(self, doc, block, fig_id, width_cm=5.5):
         geo = (block or {}).get("geometry")
-        if not geo or not self.dir:
+        if not geo:
             return False
+        if not self.dir:
+            raise ExamValidationError(f'{fig_id} 缺少 --figures-dir')
         png = self.dir / f"{fig_id}.png"
         if not png.exists():
-            self.missing.append(fig_id)
-            return False
+            raise ExamValidationError(f'缺少題圖：{png}')
         insert_figure(doc, png, geo.get("caption", ""), width_cm)
         return True
 
@@ -202,51 +172,78 @@ def build_exam_paper(data, out_dir, figs):
         f"範圍：{data.get('scope','')}"
     )
     set_cell_text(cell, head, size=13, bold=True)
+    if data.get('duration_minutes'):
+        para(doc, f"考試時間：{data['duration_minutes']} 分鐘　滿分：{data['total_points']:g} 分",
+             size=11, align=WD_ALIGN_PARAGRAPH.RIGHT)
     doc.add_paragraph()
+    start_exam_columns(doc)
 
     mc = data.get("mc_questions", []) or []
+    fills = data.get("fill_questions", []) or []
     opens = data.get("open_questions", []) or []
     pts = mc_points(data)
 
     # ── 選擇題 ──────────────────────────────────────
     if mc:
         note = data.get("mc_scoring") or f"選擇 {len(mc)} 題，共 {sum(pts.values())} 分。"
-        para(doc, f"一、選擇題（{note}）", size=12, bold=True, font=NOTE_FONT)
+        para(doc, f"一、選擇題（{note}）", size=12, bold=True, font=NOTE_FONT).paragraph_format.keep_with_next = True
         for q in mc:
             p = para(doc, "", space_after=2)
+            p.paragraph_format.keep_with_next = True
             set_run_font(p.add_run("（　　）"), BODY_FONT, BODY_SIZE)
             add_rich_text(p, f"{q['number']}. {q.get('question','')}", size=BODY_SIZE)
             figs.add(doc, q, f"mc_{q['number']}_fig")
             opts = q.get("options", {}) or {}
             texts = [f"({k}) {opts.get(k,'')}" for k in ("A", "B", "C", "D")]
             longest = max((len(plain_text(t)) for t in texts), default=0)
-            per_line = 4 if longest <= 12 else (2 if longest <= 28 else 1)
+            per_line = 4 if longest <= 5 else (2 if longest <= 14 else 1)
             for i in range(0, 4, per_line):
                 op = para(doc, "", space_after=2)
+                op.paragraph_format.keep_with_next = i+per_line < 4
                 add_rich_text(op, "　".join(texts[i:i + per_line]), size=BODY_SIZE)
         doc.add_paragraph()
 
-    # ── 非選擇題 ────────────────────────────────────
+    if fills:
+        total = sum(q['points'] for q in fills)
+        para(doc, f"二、填充題（共 {len(fills)} 題，共 {total:g} 分）",
+             size=12, bold=True, font=NOTE_FONT).paragraph_format.keep_with_next = True
+        for q in fills:
+            p = para(doc, '', space_after=8)
+            add_rich_text(p, f"{q['number']}.（{q['points']:g} 分）{q['question']}", size=BODY_SIZE)
+            p.paragraph_format.keep_with_next = bool(q.get('geometry'))
+            figs.add(doc, q, f"fill_{q['number']}_fig")
+        doc.add_paragraph()
+
+    # ── 計算題 ────────────────────────────────────
     if opens:
+        if data.get('total_points', 0) >= 100 and (mc or fills):
+            doc.add_page_break()
         total = sum(sq.get("points", 0) for q in opens for sq in q.get("sub_questions", []))
-        para(doc, f"二、非選擇題（共 {total} 分，須寫出計算過程）",
-             size=12, bold=True, font=NOTE_FONT)
+        heading = '三' if fills else '二'
+        para(doc, f"{heading}、計算題（共 {total:g} 分，須寫出計算過程）",
+             size=12, bold=True, font=NOTE_FONT).paragraph_format.keep_with_next = True
         for q in opens:
             n = q["number"]
             head_p = para(doc, "", space_after=2)
+            head_p.paragraph_format.keep_with_next = True
             set_run_font(head_p.add_run(f"{n}.（{q.get('total_points','')}分）"),
                          BODY_FONT, BODY_SIZE, True)
             add_rich_text(head_p, q.get("context", ""), size=BODY_SIZE)
             figs.add(doc, q, f"open_{n}_fig", width_cm=6.0)
-            for sq in q.get("sub_questions", []) or []:
+            subs = q.get("sub_questions", []) or []
+            for sq in subs:
                 label = sq.get("label", "")
                 sp = para(doc, "", space_after=2)
-                set_run_font(sp.add_run(f"　{label}（{sq.get('points','')}分）"),
-                             BODY_FONT, BODY_SIZE, True)
+                sp.paragraph_format.keep_with_next = True
+                if len(subs) > 1:
+                    set_run_font(sp.add_run(f"　{label}（{sq.get('points','')}分）"),
+                                 BODY_FONT, BODY_SIZE, True)
                 add_rich_text(sp, sq.get("question", ""), size=BODY_SIZE)
                 figs.add(doc, sq, f"open_{n}_{label.strip('()（）')}_fig", width_cm=5.5)
-                for _ in range(3):               # 作答空白
-                    para(doc, "", space_after=0)
+                answer_lines = 12 if data.get('total_points', 0) >= 100 else 3
+                for blank_index in range(answer_lines):
+                    blank = para(doc, "", space_after=0)
+                    blank.paragraph_format.keep_with_next = blank_index < answer_lines-1
 
     path = out_dir / f"{data.get('grade','')}數學第{data.get('exam_number','')}次段考_題目卷.docx"
     doc.save(str(path))
@@ -286,12 +283,15 @@ def build_answer_paper(data, out_dir):
                 set_cell_text(quick.rows[r * 2 + 1].cells[c + 1], str(q.get("answer", "")), 11, True)
         doc.add_paragraph()
 
+        start_exam_columns(doc)
         para(doc, "二、選擇題詳解", size=13, bold=True, font=NOTE_FONT)
         for q in mc:
             p = para(doc, "", space_after=2)
+            p.paragraph_format.keep_with_next = True
             set_run_font(p.add_run(f"{q['number']}. "), BODY_FONT, BODY_SIZE, True)
             add_rich_text(p, q.get("question", ""), size=BODY_SIZE)
             meta = para(doc, "", space_after=2)
+            meta.paragraph_format.keep_with_next = bool(q.get('solution'))
             set_run_font(meta.add_run(
                 f"　答案：{q.get('answer','')}　｜　配分：{pts.get(q['number'],0)} 分"
                 f"　｜　{q.get('section','')}　｜　{q.get('bloom_level','')}"),
@@ -302,24 +302,40 @@ def build_answer_paper(data, out_dir):
                 add_rich_text(sp, q["solution"], size=11)
         doc.add_paragraph()
 
+    if not mc:
+        start_exam_columns(doc)
+    fills = data.get('fill_questions', []) or []
+    if fills:
+        para(doc, '填充題答案與解析', size=13, bold=True, font=NOTE_FONT).paragraph_format.keep_with_next = True
+        for q in fills:
+            para(doc, f"{q['number']}. {q['question']}", rich=True, bold=True).paragraph_format.keep_with_next = True
+            para(doc, f"答案：{q['answer']}　｜　配分：{q['points']:g} 分　｜　{q['section']}　｜　{q['bloom_level']}", rich=True, size=11).paragraph_format.keep_with_next = True
+            para(doc, f"解：{q['solution']}", rich=True, size=11, space_after=6)
+
     opens = data.get("open_questions", []) or []
     if opens:
-        para(doc, "三、非選擇題參考答案與給分要點", size=13, bold=True, font=NOTE_FONT)
+        para(doc, "計算題參考答案與給分要點", size=13, bold=True, font=NOTE_FONT).paragraph_format.keep_with_next = True
         for q in opens:
             hp = para(doc, "", space_after=2)
+            hp.paragraph_format.keep_with_next = True
             set_run_font(hp.add_run(f"{q['number']}.（{q.get('total_points','')}分）"),
                          BODY_FONT, BODY_SIZE, True)
             add_rich_text(hp, q.get("context", ""), size=BODY_SIZE)
-            for sq in q.get("sub_questions", []) or []:
+            subs = q.get("sub_questions", []) or []
+            for sq in subs:
                 sp = para(doc, "", space_after=2)
-                set_run_font(sp.add_run(f"　{sq.get('label','')}（{sq.get('points','')}分）"),
-                             BODY_FONT, 11, True)
+                sp.paragraph_format.keep_with_next = True
+                if len(subs) > 1:
+                    set_run_font(sp.add_run(f"　{sq.get('label','')}（{sq.get('points','')}分）"),
+                                 BODY_FONT, 11, True)
                 add_rich_text(sp, sq.get("question", ""), size=11)
                 ap = para(doc, "", space_after=2)
+                ap.paragraph_format.keep_with_next = bool(sq.get('solution') or sq.get('bloom_level'))
                 set_run_font(ap.add_run("　　答："), BODY_FONT, 11, True)
                 add_rich_text(ap, sq.get("answer", ""), size=11)
                 if sq.get("solution"):
                     lp = para(doc, "", space_after=2)
+                    lp.paragraph_format.keep_with_next = bool(sq.get('bloom_level'))
                     set_run_font(lp.add_run("　　解："), BODY_FONT, 11, True)
                     add_rich_text(lp, sq["solution"], size=11)
                 if sq.get("bloom_level"):
@@ -351,19 +367,24 @@ def collect_blueprint(data):
     for q in data.get("mc_questions", []) or []:
         idx = norm_bloom(q.get("bloom_level"))
         if idx is None:
-            print(f"[WARN] 選擇題第 {q['number']} 題的 bloom_level 無法判讀：{q.get('bloom_level')!r}")
-            continue
+            raise ExamValidationError(f"選擇題第 {q['number']} 題的 bloom_level 無法判讀")
         cell = bucket(q.get("section"), "選擇題")[idx]
         cell[0] += pts.get(q["number"], 0)
+        cell[1] += 1
+
+    for q in data.get('fill_questions', []) or []:
+        idx = norm_bloom(q.get('bloom_level'))
+        if idx is None:
+            raise ExamValidationError(f"填充第 {q['number']} 題的 bloom_level 無法判讀")
+        cell = bucket(q.get('section'), '填充題')[idx]
+        cell[0] += q['points']
         cell[1] += 1
 
     for q in data.get("open_questions", []) or []:
         for sq in q.get("sub_questions", []) or []:
             idx = norm_bloom(sq.get("bloom_level"))
             if idx is None:
-                print(f"[WARN] 非選第 {q['number']} 題 {sq.get('label','')} 的 bloom_level "
-                      f"無法判讀：{sq.get('bloom_level')!r}")
-                continue
+                raise ExamValidationError(f"非選第 {q['number']} 題 {sq.get('label','')} 的 bloom_level 無法判讀")
             cell = bucket(sq.get("section") or q.get("section"), "計算與證明題")[idx]
             cell[0] += sq.get("points", 0)
             cell[1] += 1
@@ -521,6 +542,13 @@ def build_review_report(data, out_dir):
                    [1.2, 4.2, 2.6, 2.4, 1.2, 5.0])
         doc.add_paragraph()
 
+    if report.get('fill_rows'):
+        para(doc, '填充題逐題審查', size=13, bold=True, font=NOTE_FONT)
+        table_from(report['fill_rows'],
+                   ['題號', '題目摘要', '節次', '判定層次', '答案', '判定理由'],
+                   ['number', 'summary', 'section', 'bloom_level', 'answer', 'reason'])
+        doc.add_paragraph()
+
     if report.get("open_rows"):
         para(doc, "二、非選擇題逐題審查", size=13, bold=True, font=NOTE_FONT)
         rows = [dict(r, big=f"{r.get('big_number','')}{r.get('label','')}")
@@ -531,16 +559,34 @@ def build_review_report(data, out_dir):
                    [1.4, 4.0, 2.6, 2.4, 1.2, 5.0])
         doc.add_paragraph()
 
-    if report.get("section_stats"):
+    # 統計一律取自題目資料，避免手填報告與實際配分分叉。
+    stats, order = collect_blueprint(data)
+    computed_sections = []
+    computed_bloom = [0]*4
+    for section in order:
+        totals = {kind:sum(cell[0] for cell in stats[section][kind])
+                  for kind in ('選擇題','填充題','計算與證明題')}
+        computed_sections.append({'section':section, 'mc_pts':totals['選擇題'],
+                                  'fill_pts':totals['填充題'], 'open_pts':totals['計算與證明題'],
+                                  'total':sum(totals.values())})
+        for kind in stats[section].values():
+            for i, cell in enumerate(kind):
+                computed_bloom[i] += cell[0]
+    total = sum(computed_bloom)
+    if computed_sections:
+        computed_sections.append({'section':'合計',
+                                  **{key:sum(row[key] for row in computed_sections)
+                                     for key in ('mc_pts','fill_pts','open_pts','total')}})
         para(doc, "三、各節次配分統計", size=13, bold=True, font=NOTE_FONT)
-        table_from(report["section_stats"],
-                   ["節次", "選擇題配分", "非選配分", "合計"],
-                   ["section", "mc_pts", "open_pts", "total"])
+        table_from(computed_sections,
+                   ["節次", "選擇題配分", "填充題配分", "計算題配分", "合計"],
+                   ["section", "mc_pts", "fill_pts", "open_pts", "total"])
         doc.add_paragraph()
 
-    if report.get("bloom_stats"):
+    if total:
         para(doc, "四、認知層次分布", size=13, bold=True, font=NOTE_FONT)
-        bs = report["bloom_stats"]
+        bs = {level:{'pts':computed_bloom[i], 'pct':round(computed_bloom[i]/total*100),
+                     'suggest':BLOOM_SUGGEST[i]} for i, level in enumerate(BLOOM_INTERNAL)}
         tb = doc.add_table(rows=len(bs) + 1, cols=5)
         tb.style = "Table Grid"
         for c, h in enumerate(["層次", "配分", "佔比", "建議", "差異"]):
@@ -649,16 +695,34 @@ def main():
                     help="只產雙向細目表與審題報告（審題模式）")
     ap.add_argument("--figures-dir", default=None,
                     help="幾何圖 PNG 目錄，指定後自動插圖")
+    ap.add_argument("--math-report", help="本份考卷 verify_math.py 產出的驗算報告；正式匯出必須提供")
+    ap.add_argument("--validate-only", action="store_true", help="只檢查，不建立任何 Word 或輸出目錄")
     args = ap.parse_args()
 
     src = Path(args.json_path)
     if not src.exists():
         sys.exit(f"[ERROR] 找不到 JSON：{src}")
     data = json.loads(src.read_text(encoding="utf-8"))
+    summary = validate_exam(data, blueprint_only=args.blueprint_only,
+                            figures_dir=args.figures_dir, check_figures=not args.validate_only,
+                            allow_pending_web=args.validate_only or args.blueprint_only)
+    if args.math_report:
+        report = json.loads(Path(args.math_report).read_text(encoding='utf-8'))
+        count = validate_math_report(data, report)
+        print(f'[OK] 驗算報告與目前題目一致：{count} 個作答單位')
+    elif not args.blueprint_only and not args.validate_only:
+        raise ExamValidationError('正式匯出必須提供 --math-report；請先執行本份考卷的 verify_math.py')
+    print(f'[OK] 結構與配分檢查：{summary["total_points"]:g} 分，{summary["answer_units"]} 個作答單位')
+    for warning in summary['warnings']:
+        print(f'[WARN] {warning}')
+    if args.validate_only:
+        if not args.math_report and not args.blueprint_only:
+            print('[INFO] 本次只有結構檢查，尚未驗算答案與解析，不可視為完整驗收')
+        return
     figs = Figures(args.figures_dir)
     produced = []
 
-    is_context = "questions" in data and not data.get("mc_questions") and not data.get("open_questions")
+    is_context = summary['kind'] == 'context'
 
     if is_context:
         out = Path(args.output)
@@ -683,12 +747,15 @@ def main():
             produced.append(report)
 
     if figs.missing:
-        print(f"[WARN] 有 {len(figs.missing)} 張圖在 --figures-dir 找不到，"
-              f"該題未插圖：{', '.join(figs.missing)}")
+        raise ExamValidationError(f"缺少題圖：{', '.join(figs.missing)}")
     for p in produced:
         print(f"[OK] {p}")
     print(f"[DONE] 共產出 {len(produced)} 份文件")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ExamValidationError, OSError, json.JSONDecodeError) as exc:
+        print(f'[ERROR] {exc}', file=sys.stderr)
+        sys.exit(2)

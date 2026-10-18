@@ -38,7 +38,7 @@ Write-Output "Python：$PY"
 > **相依提醒**：Word 匯出腳本放在 `jh-math-exam` 技能底下，兩個技能共用同一份
 > OMML 轉換邏輯，避免兩邊各維護一份而分叉。使用本技能請一併安裝 `jh-math-exam`。
 
-所有產出都放在**當前工作目錄的 `output\`**。
+所有產出都放在**當前工作目錄的 `output/`**。
 
 ---
 
@@ -93,7 +93,9 @@ if ($LASTEXITCODE -ne 0) { throw "驗算未通過，請修正題目後重跑" }
 
 驗算腳本應在發現不符時 `raise SystemExit(1)`，讓上面的 `throw` 生效。
 
-> **實作紀律**：驗算不通過 → 不准進 Step 5。
+> 在 Step 5 的最終 JSON 與配圖規格完成後執行驗算，再匯出。
+> 驗算報告使用 `jh-math-exam/scripts/exam_validation.py` 的 `write_math_report()`，格式與方法見
+> `jh-math-exam/references/verification.md`。必須涵蓋每個 `q{題號}_sub1` 與 `q{題號}_sub2`；JSON 修改後需重跑。
 
 ---
 
@@ -106,6 +108,7 @@ if ($LASTEXITCODE -ne 0) { throw "驗算未通過，請修正題目後重跑" }
   "title": "國中數學生活情境非選擇題",
   "unit": "一元一次方程式",
   "grade": "七年級",
+  "total_points": 10,
   "questions": [
     {
       "number": 1,
@@ -254,7 +257,10 @@ print(json.dumps(out, ensure_ascii=False))
 ## Step 8：匯出 Word（必做）
 
 ```powershell
-& $PY $GEN "./output/exam_data.json" "./output" --figures-dir "./output/figures"
+& $PY "./output/verify_math.py"
+if ($LASTEXITCODE -ne 0) { throw "數學驗算失敗" }
+& $PY $GEN "./output/exam_data.json" "./output" --figures-dir "./output/figures" --math-report "./output/math_check.json"
+if ($LASTEXITCODE -ne 0) { throw "匯出失敗" }
 ```
 
 腳本會依 `geometry` 欄位在建構文件時直接插圖，不需要任何後處理。

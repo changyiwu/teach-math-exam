@@ -27,7 +27,7 @@ def triangle_edges(root):
 
 
 def text_positions(root):
-    return {e.text: (float(e.get('x')), float(e.get('y')))
+    return {''.join(e.itertext()): (float(e.get('x')), float(e.get('y')))
             for e in root.findall('s:text', NS)}
 
 
@@ -111,6 +111,13 @@ class GeometryTests(unittest.TestCase):
         cfg['label_offsets'] = {'AB': [0, 6]}
         shifted = text_positions(svg('quadrilateral', cfg))['a & b']
         self.assertEqual(shifted, (base[0], base[1]+6))
+
+    def test_algebraic_side_label_fits_right_margin_at_exam_canvas_size(self):
+        root = svg('quadrilateral', {'subtype':'rectangle','side_labels':{'AB':'2x+7','BC':'x+4'}})
+        labels = text_positions(root)
+        self.assertIn('x+4', labels)
+        self.assertGreater(labels['x+4'][0], 242)
+        self.assertLess(labels['x+4'][0], 265)
 
     def test_all_documented_figure_examples_render(self):
         files = [SCRIPTS.parent/'SKILL.md', SCRIPTS.parent/'references/figure-catalog.md']
