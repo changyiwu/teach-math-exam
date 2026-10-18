@@ -9,6 +9,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# 生成成果與視覺驗收暫存
+output/
+
 # 敏感資料
 .env
 *.key

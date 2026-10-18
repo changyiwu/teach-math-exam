@@ -41,18 +41,40 @@
 
 ---
 
+### 標籤排版與幾何檢查
+
+三角形、四邊形、圓與三角形三心會在所有線段及標記畫完後安排標籤，避開線段、角弧、點與其他文字。
+邊長標籤優先放在圖形外側，`AB` 與 `BA` 的位置相同。空間不足會報錯，請增加畫布或縮短文字。
+這些類型的 `config` 可加 `label_offsets`，以 SVG 像素微調建議位置，例如：
+
+```json
+{"label_offsets":{"A":[-4,0],"AB":[0,8],"height":[8,0],"center":[0,-8]}}
+```
+
+鍵為頂點名稱或原始邊鍵；`height` 是四邊形高的標籤，`center` 是圓心或三心，`radius` 是半徑文字。
+三心圖的頂點與邊偏移放在 `triangle.label_offsets`，中心偏移放在外層 `config.label_offsets`。
+手動位置仍須在畫布內，且不可壓線或重疊文字。
+
+直角記號的兩邊必須垂直、同組等邊刻度必須等長、同組角弧必須等角、直徑兩端必須相差 180 度。
+上述關係與座標矛盾、引用不存在的頂點、頂點重合或共線時會報錯。
+`side_labels` 是文字，可用於不按比例的示意圖；程式不從「3」「4」「5」等文字反推座標。
+需要按比例繪製三角形時，明確提供 `vertices`。
+
+---
+
 ## 1. triangle（三角形）
 
 ```json
 {
   "type": "triangle",
   "config": {
-    "subtype": "general",
+    "subtype": "right",
     "vertex_labels": ["A", "B", "C"],
+    "vertices": {"A": [4, 3], "B": [0, 0], "C": [0, 3]},
     "right_angle_at": "C",
     "angle_arcs": {"A": 1, "B": 2},
     "side_labels": {"AB": "c", "BC": "a", "CA": "b"},
-    "equal_marks": {"AB": 1, "BC": 1},
+    "equal_marks": {"AB": 1, "BC": 2},
     "altitude_from": "A",
     "median_from": "A",
     "dashed_sides": ["CA"],
@@ -65,6 +87,7 @@
 |------|------|--------|
 | subtype | 三角形種類 | `general`（預設）、`right`、`isosceles`、`equilateral` |
 | vertex_labels | 頂點標籤 | 字串陣列，預設 `["A","B","C"]` |
+| vertices | 自訂頂點座標，SVG 的 y 軸向下；本體與三心共用 | 必須完整提供三個頂點，如 `{"A":[4,3],"B":[0,0],"C":[0,3]}` |
 | right_angle_at | 畫直角符號的頂點 | 頂點標籤字串 |
 | angle_arcs | 各頂點畫幾條角弧 | `{"A":1, "B":2}` 或 `["A","B"]`（預設 1 條）|
 | side_labels | 各邊的文字標籤 | `{"AB":"5"}` 鍵為兩端頂點標籤 |
@@ -78,12 +101,12 @@
 
 直角三角形（直角在 C，標邊長）：
 ```json
-{"type":"triangle","config":{"subtype":"right","vertex_labels":["A","B","C"],"right_angle_at":"C","side_labels":{"AB":"5","BC":"3","CA":"4"}}}
+{"type":"triangle","config":{"subtype":"right","vertex_labels":["A","B","C"],"vertices":{"A":[4,3],"B":[0,0],"C":[0,3]},"right_angle_at":"C","side_labels":{"AB":"5","BC":"3","CA":"4"}}}
 ```
 
 等腰三角形（標等邊）：
 ```json
-{"type":"triangle","config":{"subtype":"isosceles","equal_marks":{"AB":1,"AC":1},"angle_arcs":{"B":1,"C":1}}}
+{"type":"triangle","config":{"subtype":"isosceles","equal_marks":{"AC":1,"BC":1},"angle_arcs":{"A":1,"B":1}}}
 ```
 
 ---
@@ -98,7 +121,7 @@
     "vertex_labels": ["A", "B", "C", "D"],
     "side_labels": {"AB": "5", "BC": "3"},
     "equal_marks": {"AB": 1, "CD": 1, "BC": 2, "AD": 2},
-    "right_angles": ["A"],
+    "right_angles": [],
     "diagonals": false,
     "diagonal_labels": {"AC": "m", "BD": "n"},
     "show_height": false,
@@ -112,11 +135,13 @@
 |-----------|------|
 | `parallelogram` | 平行四邊形 |
 | `rectangle` | 矩形（自動標四個直角）|
-| `rhombus` | 菱形（等邊鑽石形）|
+| `rhombus` | 菱形（四邊等長，頂點依左下至左上排列）|
 | `square` | 正方形 |
 | `trapezoid` | 等腰梯形 |
 | `right_trapezoid` | 直角梯形 |
 | `general` | 任意四邊形 |
+
+`right_trapezoid` 的 AB∥DC，左腰 AD 垂直上下底；直角在 A、D。
 
 ### ⚠️ 頂點方位（標邊長前務必確認）
 
@@ -155,7 +180,7 @@
     "points": {
       "A": 60,
       "B": 160,
-      "C": 280
+      "C": 240
     },
     "radius_lines": ["A", "B"],
     "radius_label": "r",
@@ -174,7 +199,7 @@
 | points | 圓周上各點標籤 → 角度（0=右，90=上，CCW）|
 | radius_lines | 畫哪些半徑線（陣列）|
 | chords | 弦：`[["A","B"],["C","D"]]` |
-| diameter | 直徑端點 |
+| diameter | 直徑端點，兩點的角度必須相差 180 度 |
 | tangent_at | 在此點畫切線 |
 | central_angle | 填色扇形（圓心角）的兩端點 |
 | inscribed_angle | 圓周角：頂點 + 弧端點 |
@@ -353,7 +378,7 @@
 
 ### 等腰梯形
 ```json
-{"id":"trapezoid","type":"quadrilateral","config":{"subtype":"trapezoid","vertex_labels":["A","B","C","D"],"equal_marks":{"AB":1,"CD":1}}}
+{"id":"trapezoid","type":"quadrilateral","config":{"subtype":"trapezoid","vertex_labels":["A","B","C","D"],"equal_marks":{"AD":1,"BC":1}}}
 ```
 
 ### 四角柱（標頂點）

@@ -21,6 +21,8 @@ Output:
 """
 
 import math, json, sys
+from html import escape
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -37,6 +39,15 @@ class SVGCanvas:
         self.h = height
         self.bg = bg
         self._els = []
+        self._segments = []
+        self._text_boxes = []
+        self._labels = []
+
+    def _obstacle_path(self, pts, closed=False):
+        path = list(pts)
+        if closed:
+            path.append(path[0])
+        self._segments.extend(zip(path, path[1:]))
 
     def _f(self, v):
         s = f"{float(v):.3f}".rstrip('0').rstrip('.')
@@ -47,6 +58,7 @@ class SVGCanvas:
 
     # ── 形狀 ───────────────────────────────────────────
     def line(self, x1, y1, x2, y2, color='#222', width=1.8, dash=''):
+        self._obstacle_path([(x1, y1), (x2, y2)])
         d = f' stroke-dasharray="{dash}"' if dash else ''
         self._els.append(
             f'<line x1="{self._f(x1)}" y1="{self._f(y1)}" x2="{self._f(x2)}" y2="{self._f(y2)}" '
@@ -54,6 +66,7 @@ class SVGCanvas:
         )
 
     def polygon(self, pts, fill='none', stroke='#222', width=1.8):
+        self._obstacle_path(pts, closed=True)
         s = ' '.join(self._pt(x, y) for x, y in pts)
         self._els.append(
             f'<polygon points="{s}" fill="{fill}" stroke="{stroke}" '
@@ -61,6 +74,7 @@ class SVGCanvas:
         )
 
     def polyline(self, pts, stroke='#222', width=1.8, dash='', fill='none'):
+        self._obstacle_path(pts)
         s = ' '.join(self._pt(x, y) for x, y in pts)
         d = f' stroke-dasharray="{dash}"' if dash else ''
         self._els.append(
@@ -68,12 +82,16 @@ class SVGCanvas:
         )
 
     def circle(self, cx, cy, r, fill='none', stroke='#222', width=1.8):
+        self._obstacle_path([(cx+r*math.cos(i*math.pi/48), cy+r*math.sin(i*math.pi/48))
+                             for i in range(96)], closed=True)
         self._els.append(
             f'<circle cx="{self._f(cx)}" cy="{self._f(cy)}" r="{self._f(r)}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="{width}"/>'
         )
 
     def ellipse(self, cx, cy, rx, ry, fill='none', stroke='#222', width=1.8, dash=''):
+        self._obstacle_path([(cx+rx*math.cos(i*math.pi/48), cy+ry*math.sin(i*math.pi/48))
+                             for i in range(96)], closed=True)
         d = f' stroke-dasharray="{dash}"' if dash else ''
         self._els.append(
             f'<ellipse cx="{self._f(cx)}" cy="{self._f(cy)}" rx="{self._f(rx)}" ry="{self._f(ry)}" '
@@ -87,6 +105,9 @@ class SVGCanvas:
         x1 = cx + r * math.cos(a1);  y1 = cy - r * math.sin(a1)
         x2 = cx + r * math.cos(a2);  y2 = cy - r * math.sin(a2)
         diff = (a2_deg - a1_deg) % 360
+        self._obstacle_path([(cx+r*math.cos(math.radians(a1_deg+diff*i/32)),
+                              cy-r*math.sin(math.radians(a1_deg+diff*i/32)))
+                             for i in range(33)])
         large = 1 if diff > 180 else 0
         self._els.append(
             f'<path d="M {self._f(x1)} {self._f(y1)} '
@@ -99,6 +120,11 @@ class SVGCanvas:
         x1 = cx + r * math.cos(a1);  y1 = cy - r * math.sin(a1)
         x2 = cx + r * math.cos(a2);  y2 = cy - r * math.sin(a2)
         diff = (a2_deg - a1_deg) % 360
+        self._obstacle_path([(cx, cy), (x1, y1)])
+        self._obstacle_path([(cx, cy), (x2, y2)])
+        self._obstacle_path([(cx+r*math.cos(math.radians(a1_deg+diff*i/32)),
+                              cy-r*math.sin(math.radians(a1_deg+diff*i/32)))
+                             for i in range(33)])
         large = 1 if diff > 180 else 0
         self._els.append(
             f'<path d="M {self._f(cx)} {self._f(cy)} L {self._f(x1)} {self._f(y1)} '
@@ -107,6 +133,8 @@ class SVGCanvas:
         )
 
     def dot(self, x, y, r=3, color='#222'):
+        self._obstacle_path([(x+r*math.cos(i*math.pi/8), y+r*math.sin(i*math.pi/8))
+                             for i in range(16)], closed=True)
         self._els.append(f'<circle cx="{self._f(x)}" cy="{self._f(y)}" r="{r}" fill="{color}"/>')
 
     def arrow(self, x1, y1, x2, y2, color='#333', width=1.5, head=8):
@@ -122,18 +150,67 @@ class SVGCanvas:
 
     # ── 文字 ───────────────────────────────────────────
     def text(self, x, y, s, size=13, anchor='middle', color='#222', bold=False, italic=False):
+        self._text_boxes.append(self._text_box(x, y, str(s), size, anchor))
         style = []
         if bold:   style.append('font-weight:bold')
         if italic: style.append('font-style:italic')
         sa = f' style="{";".join(style)}"' if style else ''
         self._els.append(
             f'<text x="{self._f(x)}" y="{self._f(y)}" font-size="{size}" '
-            f'text-anchor="{anchor}" dominant-baseline="middle" fill="{color}"{sa}>{s}</text>'
+            f'text-anchor="{anchor}" dominant-baseline="middle" fill="{color}"{sa}>{escape(str(s))}</text>'
         )
+
+    @staticmethod
+    def _text_box(x, y, s, size, anchor='middle'):
+        # 保守估計含斜體的字框；不依賴特定作業系統字型。
+        width = sum(1.05 if unicodedata.east_asian_width(ch) in ('W', 'F')
+                    else 0.72 for ch in s) * size
+        left = x if anchor == 'start' else x-width if anchor == 'end' else x-width/2
+        return (left-3, y-size*0.65-3, left+width+3, y+size*0.65+3)
+
+    def label(self, x, y, s, *, key=None, cfg=None, direction=None, priority=1, **style):
+        """先排完線與標記，再放標籤。手動偏移以原建議位置為基準。"""
+        adjustment = (cfg or {}).get('label_offsets', {}).get(key)
+        if adjustment is not None:
+            if len(adjustment) != 2 or not all(isinstance(v, (int, float)) and
+                                               math.isfinite(v) for v in adjustment):
+                raise ValueError(f'label_offsets[{key}] 必須是兩個有限數字')
+            x, y = x+adjustment[0], y+adjustment[1]
+        self._labels.append((priority, x, y, str(s), style, direction, adjustment is not None))
+
+    def _place_labels(self):
+        pending, self._labels = self._labels, []
+        for _, x, y, s, style, direction, manual in sorted(pending, key=lambda item: item[0]):
+            candidates = [(x, y)]
+            if not manual:
+                if direction:
+                    nx, ny = direction
+                    # 先沿外法線移動；必要時沿邊平移，仍留在圖形外側。
+                    candidates += [(x+nx*d-ny*t, y+ny*d+nx*t)
+                                   for d in (0, 6, 12, 18, 24, 32)
+                                   for t in (0, -8, 8, -16, 16, -24, 24, -36, 36)]
+                else:
+                    candidates += [(x+dx, y+dy) for r in (8, 16, 24, 32, 40)
+                                   for dx, dy in ((0,-r),(r,0),(0,r),(-r,0),
+                                                  (r,-r),(-r,-r),(r,r),(-r,r))]
+            for px, py in candidates:
+                box = self._text_box(px, py, s, style.get('size', 13), style.get('anchor', 'middle'))
+                if box[0] < 3 or box[1] < 3 or box[2] > self.w-3 or box[3] > self.h-3:
+                    continue
+                if any(boxes_overlap(box, other) for other in self._text_boxes):
+                    continue
+                if any(segment_hits_box(a, b, box) for a, b in self._segments):
+                    continue
+                self.text(px, py, s, **style)
+                break
+            else:
+                raise ValueError(f'標籤「{s}」無法避開線段或文字；請增加畫布或調整 label_offsets')
 
     # ── 幾何輔助標記 ────────────────────────────────────
     def right_angle_mark(self, vx, vy, px, py, qx, qy, size=11):
         """在頂點 V 畫直角方塊，兩邊指向 P 和 Q"""
+        if not is_perpendicular((px-vx, py-vy), (qx-vx, qy-vy)):
+            raise ValueError('直角標記的兩邊實際不垂直，請修正頂點或直角位置')
         def unit(dx, dy):
             d = math.hypot(dx, dy)
             return (dx/d, dy/d) if d > 1e-9 else (0, 0)
@@ -167,6 +244,7 @@ class SVGCanvas:
                       color=color, width=width)
 
     def render(self):
+        self._place_labels()
         bg_el = f'\n  <rect width="{self.w}" height="{self.h}" fill="{self.bg}"/>' if self.bg else ''
         body = '\n  '.join(self._els)
         return (
@@ -190,7 +268,7 @@ def label_pos(vx, vy, cx, cy, dist=20):
         return vx, vy - dist
     return vx + (dx/d)*dist, vy + (dy/d)*dist
 
-def side_label_pos(p1, p2, offset=16):
+def side_label_pos(p1, p2, offset=16, center=None):
     """邊中點垂直偏移 offset，回傳 (lx, ly)"""
     mx, my = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
     dx, dy = p2[0]-p1[0], p2[1]-p1[1]
@@ -198,7 +276,125 @@ def side_label_pos(p1, p2, offset=16):
     if d < 1e-9:
         return mx, my - offset
     nx, ny = -dy/d, dx/d
+    if center is not None and (mx-center[0])*nx + (my-center[1])*ny < 0:
+        nx, ny = -nx, -ny
     return mx + nx*offset, my + ny*offset
+
+
+def boxes_overlap(a, b):
+    return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
+
+
+def segment_hits_box(a, b, box):
+    """線段與文字留白框相交（slab clipping）。"""
+    lo, hi = 0.0, 1.0
+    for i in (0, 1):
+        delta = b[i]-a[i]
+        if abs(delta) < 1e-12:
+            if a[i] < box[i] or a[i] > box[i+2]:
+                return False
+        else:
+            t1, t2 = (box[i]-a[i])/delta, (box[i+2]-a[i])/delta
+            lo, hi = max(lo, min(t1, t2)), min(hi, max(t1, t2))
+            if lo > hi:
+                return False
+    return True
+
+
+def is_perpendicular(u, v):
+    length = math.hypot(*u)*math.hypot(*v)
+    return length > 0 and abs(u[0]*v[0]+u[1]*v[1]) <= length*1e-6
+
+
+def validate_polygon(labels, pts, cfg):
+    """只驗證明確宣告的幾何關係；邊長文字仍可作不按比例的示意標示。"""
+    n = len(pts)
+    if len(labels) != n or len(set(labels)) != n or any(not isinstance(k, str) or not k for k in labels):
+        raise ValueError(f'需要 {n} 個不重複的頂點名稱')
+    if any(len(p) != 2 or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in p) for p in pts):
+        raise ValueError('頂點座標必須是兩個有限數字')
+    lengths = [math.dist(pts[i], pts[(i+1) % n]) for i in range(n)]
+    span = max(lengths)
+    area2 = abs(sum(pts[i][0]*pts[(i+1)%n][1]-pts[(i+1)%n][0]*pts[i][1] for i in range(n)))
+    if min(lengths) <= span*1e-9 or span == 0 or area2 <= span*span*1e-9:
+        raise ValueError('頂點重合或共線，無法形成有效圖形')
+    verts = dict(zip(labels, pts))
+    for name in ('side_labels', 'equal_marks', 'diagonal_labels'):
+        for edge in cfg.get(name, {}):
+            if len(edge) != 2 or edge[0] not in verts or edge[1] not in verts or edge[0] == edge[1]:
+                raise ValueError(f'{name} 的邊 {edge} 不存在（邊鍵使用兩個單字元頂點名稱）')
+    for edge in cfg.get('dashed_sides', []):
+        if len(edge) != 2 or edge[0] not in verts or edge[1] not in verts or edge[0] == edge[1]:
+            raise ValueError(f'dashed_sides 的邊 {edge} 不存在')
+    groups = {}
+    for edge, count in cfg.get('equal_marks', {}).items():
+        if not isinstance(count, int) or count < 1:
+            raise ValueError('等邊刻度數必須是正整數')
+        distance = math.dist(verts[edge[0]], verts[edge[1]])
+        if count in groups and not math.isclose(distance, groups[count], rel_tol=1e-6):
+            raise ValueError(f'等邊刻度第 {count} 組的邊實際不等長，請修正頂點或等邊標記')
+        groups[count] = distance
+    arcs = cfg.get('angle_arcs', {})
+    if isinstance(arcs, list):
+        arcs = dict.fromkeys(arcs, 1)
+    angles = {}
+    for label, count in arcs.items():
+        if label not in verts or not isinstance(count, int) or count < 1:
+            raise ValueError('角弧需要有效頂點與正整數弧數')
+        i = labels.index(label)
+        p, v, q = pts[(i-1)%n], pts[i], pts[(i+1)%n]
+        u, w = (p[0]-v[0], p[1]-v[1]), (q[0]-v[0], q[1]-v[1])
+        cosine = (u[0]*w[0]+u[1]*w[1])/(math.hypot(*u)*math.hypot(*w))
+        angle = math.acos(max(-1, min(1, cosine)))
+        if count in angles and not math.isclose(angle, angles[count], abs_tol=1e-6):
+            raise ValueError(f'第 {count} 組角弧的角實際不相等')
+        angles[count] = angle
+    for name in ('right_angle_at', 'altitude_from', 'median_from'):
+        if cfg.get(name) is not None and cfg[name] not in verts:
+            raise ValueError(f'{name} 指定的頂點不存在')
+    for label in cfg.get('right_angles', []):
+        if label not in verts:
+            raise ValueError('right_angles 指定的頂點不存在')
+
+
+def triangle_vertices(cfg):
+    labels = cfg.get('vertex_labels', ['A', 'B', 'C'])
+    if len(labels) != 3:
+        raise ValueError('三角形需要恰好三個頂點名稱')
+    sub = cfg.get('subtype', 'general')
+    defaults = {
+        'general': [[0.05, 0.95], [1, 1], [0.72, 0.05]],
+        'right': [[1, 1], [0, 0], [0, 1]],
+        'isosceles': [[0, 1], [1, 1], [0.5, 0.05]],
+        'equilateral': [[0, 1], [1, 1], [0.5, 1-math.sqrt(3)/2]],
+    }
+    if sub not in defaults:
+        raise ValueError(f'未知三角形種類：{sub}')
+    if cfg.get('vertices'):
+        if set(cfg['vertices']) != set(labels):
+            raise ValueError('vertices 必須完整提供所有頂點，且不可多出頂點')
+        pts = [cfg['vertices'][label] for label in labels]
+    else:
+        pts = defaults[sub]
+    validate_polygon(labels, pts, cfg)
+    lengths = [math.dist(pts[i], pts[(i+1)%3]) for i in range(3)]
+    if sub == 'equilateral' and not all(math.isclose(v, lengths[0], rel_tol=1e-6) for v in lengths):
+        raise ValueError('equilateral 的頂點未形成正三角形')
+    if sub == 'isosceles' and not any(math.isclose(lengths[i], lengths[(i+1)%3], rel_tol=1e-6) for i in range(3)):
+        raise ValueError('isosceles 的頂點未形成等腰三角形')
+    if sub == 'right' and not any(is_perpendicular(
+            (pts[(i-1)%3][0]-pts[i][0], pts[(i-1)%3][1]-pts[i][1]),
+            (pts[(i+1)%3][0]-pts[i][0], pts[(i+1)%3][1]-pts[i][1])) for i in range(3)):
+        raise ValueError('right 的頂點未形成直角三角形')
+    return labels, pts
+
+
+def circumcircle(pts):
+    (ax, ay), (bx, by), (cx, cy) = pts
+    det = 2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by))
+    ux = ((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/det
+    uy = ((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/det
+    return ux, uy, math.hypot(ax-ux, ay-uy)
 
 def fit_pts(pts, W, H, padding=35):
     """將正規化座標點縮放置入畫布，回傳 (scaled_pts, scale)"""
@@ -207,6 +403,8 @@ def fit_pts(pts, W, H, padding=35):
     min_y, max_y = min(ys), max(ys)
     rx = max_x - min_x or 1;   ry = max_y - min_y or 1
     aw = W - 2*padding;  ah = H - 2*padding
+    if aw <= 0 or ah <= 0:
+        raise ValueError('畫布過小，無法容納圖形與標籤留白')
     scale = min(aw/rx, ah/ry)
     ox = padding + (aw - rx*scale)/2 - min_x*scale
     oy = padding + (ah - ry*scale)/2 - min_y*scale
@@ -217,7 +415,7 @@ def fit_pts(pts, W, H, padding=35):
 # 圖形渲染函式
 # ══════════════════════════════════════════════════════
 
-def render_triangle(c, cfg):
+def render_triangle(c, cfg, fitted_pts=None):
     """
     三角形
     subtype: general | right | isosceles | equilateral
@@ -233,25 +431,8 @@ def render_triangle(c, cfg):
       show_dots: True
     """
     W, H = c.w, c.h
-    labels = cfg.get('vertex_labels', ['A', 'B', 'C'])
-    sub = cfg.get('subtype', 'general')
-
-    # 頂點正規化座標（SVG 座標，y 向下）
-    if 'vertices' in cfg and cfg['vertices']:
-        raw = cfg['vertices']
-        pts_norm = [raw.get(la, [0, 0]) for la in labels]
-    elif sub == 'right':
-        # C 在左下角，CA 水平、CB 垂直 → 幾何真正 90°，右角在 C
-        pts_norm = [[1, 1], [0, 0], [0, 1]]
-    elif sub == 'isosceles':
-        pts_norm = [[0, 1], [1, 1], [0.5, 0.05]]
-    elif sub == 'equilateral':
-        h = math.sqrt(3)/2
-        pts_norm = [[0, 1], [1, 1], [0.5, 1 - h]]
-    else:  # general
-        pts_norm = [[0.05, 0.95], [1, 1], [0.72, 0.05]]
-
-    pts, _ = fit_pts(pts_norm, W, H, padding=38)
+    labels, pts_norm = triangle_vertices(cfg)
+    pts = fitted_pts if fitted_pts is not None else fit_pts(pts_norm, W, H, padding=38)[0]
     verts = {labels[i]: pts[i] for i in range(len(labels))}
     cx = sum(p[0] for p in pts)/3
     cy = sum(p[1] for p in pts)/3
@@ -295,8 +476,13 @@ def render_triangle(c, cfg):
         dx, dy = p2[0]-p1[0], p2[1]-p1[1]
         t = ((v[0]-p1[0])*dx + (v[1]-p1[1])*dy) / (dx*dx+dy*dy)
         fx, fy = p1[0]+t*dx, p1[1]+t*dy
-        c.line(v[0], v[1], fx, fy, color='#666', width=1.2, dash='4,3')
-        c.right_angle_mark(fx, fy, v[0], v[1], p2[0], p2[1], size=9)
+        if math.dist(v, (fx, fy)) > 1e-6:
+            c.line(v[0], v[1], fx, fy, color='#666', width=1.2, dash='4,3')
+            if t < 0 or t > 1:
+                end = p1 if t < 0 else p2
+                c.line(end[0], end[1], fx, fy, color='#666', width=1.2, dash='4,3')
+            end = p1 if math.dist(p2, (fx, fy)) < 1e-6 else p2
+            c.right_angle_mark(fx, fy, v[0], v[1], end[0], end[1], size=9)
 
     # ─ 中線 ─
     mf = cfg.get('median_from')
@@ -320,8 +506,10 @@ def render_triangle(c, cfg):
         a, b = sk[0], sk[-1]
         if a in verts and b in verts:
             p1, p2 = verts[a], verts[b]
-            lx, ly = side_label_pos(p1, p2, offset=15)
-            c.text(lx, ly, slabel, size=12, italic=True)
+            lx, ly = side_label_pos(p1, p2, offset=15, center=(cx, cy))
+            mx, my = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
+            c.label(lx, ly, slabel, key=sk, cfg=cfg,
+                    direction=((lx-mx)/15, (ly-my)/15), size=12, italic=True)
 
     # ─ 頂點標籤 ─
     if cfg.get('show_dots', True):
@@ -329,7 +517,7 @@ def render_triangle(c, cfg):
             c.dot(vx, vy, r=2.5)
     for la, (vx, vy) in verts.items():
         lx, ly = label_pos(vx, vy, cx, cy, dist=20)
-        c.text(lx, ly, la, size=13, italic=True)
+        c.label(lx, ly, la, key=la, cfg=cfg, priority=0, size=13, italic=True)
 
 
 # ─────────────────────────────────────────────────────
@@ -354,15 +542,20 @@ def render_quadrilateral(c, cfg):
         asp = 1.0 if sub == 'square' else 1.7
         pts_norm = [[0,1],[asp,1],[asp,0],[0,0]]
     elif sub == 'rhombus':
-        pts_norm = [[0.5,0],[1,0.5],[0.5,1],[0,0.5]]
+        height = math.sqrt(0.75**2-0.25**2)
+        pts_norm = [[0.25,height],[1,height],[0.75,0],[0,0]]
     elif sub == 'trapezoid':
         pts_norm = [[0.15,1],[0.85,1],[0.72,0],[0.28,0]]
     elif sub == 'right_trapezoid':
-        pts_norm = [[0,1],[1,1],[1,0.28],[0,0]]
+        pts_norm = [[0,1],[1,1],[0.65,0],[0,0]]
     elif sub == 'general':
         pts_norm = [[0.1,0.9],[0.9,1],[0.8,0.1],[0.05,0.05]]
-    else:  # parallelogram
+    elif sub == 'parallelogram':
         pts_norm = [[0.15,1],[1,1],[0.85,0],[0,0]]
+    else:
+        raise ValueError(f'未知四邊形種類：{sub}')
+
+    validate_polygon(labels, pts_norm, cfg)
 
     pts, _ = fit_pts(pts_norm, W, H, padding=38)
     verts = {labels[i]: pts[i] for i in range(min(len(labels),len(pts)))}
@@ -390,7 +583,7 @@ def render_quadrilateral(c, cfg):
     if sub in ('rectangle', 'square') and not ra_list:
         ra_list = labels[:4]
     if sub == 'right_trapezoid' and not ra_list:
-        ra_list = [labels[0], labels[1]]
+        ra_list = [labels[0], labels[3]]
     for la in ra_list:
         if la in verts:
             idx = labels.index(la)
@@ -402,6 +595,8 @@ def render_quadrilateral(c, cfg):
 
     # ─ 高（虛線 + 直角記號）─
     if cfg.get('show_height') and n == 4:
+        if sub == 'general':
+            raise ValueError('show_height 需要水平且平行的上下底，請使用梯形或平行四邊形類型')
         order = sorted(range(n), key=lambda i: pts[i][1])
         top = [pts[order[0]], pts[order[1]]]
         bot = [pts[order[2]], pts[order[3]]]
@@ -417,11 +612,14 @@ def render_quadrilateral(c, cfg):
             apex = ((top[0][0] + top[1][0]) / 2.0, (top[0][1] + top[1][1]) / 2.0)
             foot_x = apex[0]
         c.line(apex[0], apex[1], foot_x, by, color='#c00', width=1.4, dash='5,3')
-        c.right_angle_mark(foot_x, by, foot_x, apex[1], bx2, by, size=9)
+        if abs(apex[1]-by) < 1e-6:
+            raise ValueError('此四邊形無法以目前底邊畫高')
+        side_x = bx1 if abs(foot_x-bx2) < 1e-6 else bx2
+        c.right_angle_mark(foot_x, by, foot_x, apex[1], side_x, by, size=9)
         hlabel = cfg.get('height_label')
         if hlabel:
-            c.text(foot_x - 12, (apex[1] + by) / 2.0, str(hlabel),
-                   size=12, italic=True, color='#c00')
+            c.label(foot_x - 12, (apex[1] + by) / 2.0, str(hlabel),
+                    key='height', cfg=cfg, size=12, italic=True, color='#c00')
 
     # ─ 等邊刻度 ─
     for sk, ntick in cfg.get('equal_marks', {}).items():
@@ -435,8 +633,10 @@ def render_quadrilateral(c, cfg):
         a, b = sk[0], sk[-1]
         if a in verts and b in verts:
             p1, p2 = verts[a], verts[b]
-            lx, ly = side_label_pos(p1, p2, offset=15)
-            c.text(lx, ly, slabel, size=12, italic=True)
+            lx, ly = side_label_pos(p1, p2, offset=15, center=(cx, cy))
+            mx, my = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
+            c.label(lx, ly, slabel, key=sk, cfg=cfg,
+                    direction=((lx-mx)/15, (ly-my)/15), size=12, italic=True)
 
     # ─ 頂點 ─
     if cfg.get('show_dots', True):
@@ -444,7 +644,7 @@ def render_quadrilateral(c, cfg):
             c.dot(vx, vy, r=2.5)
     for la, (vx, vy) in verts.items():
         lx, ly = label_pos(vx, vy, cx, cy, dist=20)
-        c.text(lx, ly, la, size=13, italic=True)
+        c.label(lx, ly, la, key=la, cfg=cfg, priority=0, size=13, italic=True)
 
 
 # ─────────────────────────────────────────────────────
@@ -468,6 +668,33 @@ def render_circle(c, cfg):
     W, H = c.w, c.h
     cx, cy = W/2, H/2
     r = min(W, H)/2 - 32
+    if r <= 0:
+        raise ValueError('圓形畫布過小')
+
+    point_angles = cfg.get('points', {})
+    for name, angle in point_angles.items():
+        if not isinstance(angle, (int, float)) or not math.isfinite(angle):
+            raise ValueError(f'圓周點 {name} 的角度必須是有限數字')
+    def require_points(names, count=None):
+        if (count is not None and len(names) != count) or len(set(names)) != len(names) or any(p not in point_angles for p in names):
+            raise ValueError(f'圓的元素引用不存在、重複或數量不符的圓周點：{names}')
+    for name in ('radius_lines',):
+        require_points(cfg.get(name, []))
+    for name in ('radius_label_at', 'tangent_at'):
+        if cfg.get(name) is not None:
+            require_points([cfg[name]], 1)
+    for chord in cfg.get('chords', []):
+        require_points(chord, 2)
+    for name in ('diameter', 'central_angle'):
+        if cfg.get(name) is not None:
+            require_points(cfg[name], 2)
+    if cfg.get('inscribed_angle'):
+        ia = cfg['inscribed_angle']
+        require_points([ia.get('vertex')]+ia.get('arc', []), 3)
+    if cfg.get('diameter'):
+        a, b = cfg['diameter']
+        if not math.isclose((point_angles[b]-point_angles[a]) % 360, 180, abs_tol=1e-6):
+            raise ValueError('直徑兩端點的圓心角必須為 180 度')
 
     # 圓周上的點
     pts = {}
@@ -490,7 +717,8 @@ def render_circle(c, cfg):
     # ─ 圓心 ─
     if cfg.get('show_center', True):
         c.dot(cx, cy, r=3)
-        c.text(cx - 14, cy + 5, center_label, size=12, italic=True)
+        c.label(cx - 14, cy + 5, center_label, key='center', cfg=cfg,
+                size=12, italic=True)
 
     # ─ 半徑線 ─
     for rl in cfg.get('radius_lines', []):
@@ -501,7 +729,8 @@ def render_circle(c, cfg):
     if rl_at and rl_at in pts:
         mid_x = (cx + pts[rl_at][0])/2
         mid_y = (cy + pts[rl_at][1])/2
-        c.text(mid_x + 8, mid_y - 8, cfg.get('radius_label', 'r'), size=11, italic=True)
+        c.label(mid_x + 8, mid_y - 8, cfg.get('radius_label', 'r'),
+                key='radius', cfg=cfg, size=11, italic=True)
 
     # ─ 弦 ─
     for chord in cfg.get('chords', []):
@@ -544,7 +773,8 @@ def render_circle(c, cfg):
         d = math.hypot(dx, dy)
         lx = px + (dx/d)*15 if d > 1e-9 else px
         ly = py + (dy/d)*15 if d > 1e-9 else py - 15
-        c.text(lx, ly, label, size=12, italic=True)
+        c.label(lx, ly, label, key=label, cfg=cfg, priority=0,
+                direction=(dx/d, dy/d), size=12, italic=True)
 
 
 # ─────────────────────────────────────────────────────
@@ -913,21 +1143,18 @@ def render_triangle_center(c, cfg):
     """
     W, H = c.w, c.h
     tri_cfg = cfg.get('triangle', {'subtype': 'general'})
-    render_triangle(c, tri_cfg)
-
-    # 重新計算頂點位置（與 render_triangle 一致）
-    sub = tri_cfg.get('subtype', 'general')
-    if sub == 'right':       pts_norm = [[1,1],[0,0],[0,1]]
-    elif sub == 'isosceles': pts_norm = [[0,1],[1,1],[0.5,0.05]]
-    elif sub == 'equilateral':
-        h = math.sqrt(3)/2
-        pts_norm = [[0,1],[1,1],[0.5,1-h]]
-    else:
-        pts_norm = [[0.05,0.95],[1,1],[0.72,0.05]]
-    pts, _ = fit_pts(pts_norm, W, H, padding=38)
+    _, pts_norm = triangle_vertices(tri_cfg)
+    ctype = cfg.get('center_type', 'centroid')
+    if ctype not in ('centroid', 'circumcenter', 'incenter'):
+        raise ValueError(f'未知三角形中心：{ctype}')
+    bounds = list(pts_norm)
+    if ctype == 'circumcenter':
+        ux, uy, radius = circumcircle(pts_norm)
+        bounds.extend([(ux-radius, uy-radius), (ux+radius, uy+radius)])
+    pts = fit_pts(bounds, W, H, padding=38)[0][:3]
+    render_triangle(c, tri_cfg, fitted_pts=pts)
     A, B, Cv = pts[0], pts[1], pts[2]
 
-    ctype = cfg.get('center_type', 'centroid')
     c_label = cfg.get('center_label', {'centroid':'G','circumcenter':'O','incenter':'I'}.get(ctype,'P'))
 
     if ctype == 'centroid':
@@ -939,18 +1166,13 @@ def render_triangle_center(c, cfg):
             c.line(v[0],v[1],m[0],m[1], color='#5566aa', width=1.3, dash='4,3')
             c.dot(m[0],m[1], r=2.5, color='#5566aa')
         c.dot(gx, gy, r=5, color='#dd4400')
-        c.text(gx+13, gy-9, c_label, size=12, bold=True, color='#dd4400')
+        c.label(gx+13, gy-9, c_label, key='center', cfg=cfg, size=12, bold=True, color='#dd4400')
 
     elif ctype == 'circumcenter':
-        ax,ay = A; bx,by = B; ccx,ccy = Cv
-        D = 2*(ax*(by-ccy)+bx*(ccy-ay)+ccx*(ay-by))
-        if abs(D) > 1e-6:
-            ux = ((ax**2+ay**2)*(by-ccy)+(bx**2+by**2)*(ccy-ay)+(ccx**2+ccy**2)*(ay-by))/D
-            uy = ((ax**2+ay**2)*(ccx-bx)+(bx**2+by**2)*(ax-ccx)+(ccx**2+ccy**2)*(bx-ax))/D
-            R = math.hypot(ax-ux, ay-uy)
-            c.circle(ux, uy, R, stroke='#5566aa', width=1.3)
-            c.dot(ux, uy, r=4, color='#dd4400')
-            c.text(ux+12, uy-10, c_label, size=12, bold=True, color='#dd4400')
+        ux, uy, radius = circumcircle(pts)
+        c.circle(ux, uy, radius, stroke='#5566aa', width=1.3)
+        c.dot(ux, uy, r=4, color='#dd4400')
+        c.label(ux+12, uy-10, c_label, key='center', cfg=cfg, size=12, bold=True, color='#dd4400')
 
     elif ctype == 'incenter':
         ax,ay = A; bx,by = B; ccx,ccy = Cv
@@ -963,7 +1185,7 @@ def render_triangle_center(c, cfg):
         inr = area/(s/2) if s > 0 else 0
         c.circle(ix, iy, inr, stroke='#5566aa', width=1.3)
         c.dot(ix, iy, r=4, color='#dd4400')
-        c.text(ix+12, iy-10, c_label, size=12, bold=True, color='#dd4400')
+        c.label(ix+12, iy-10, c_label, key='center', cfg=cfg, size=12, bold=True, color='#dd4400')
 
 
 # ─────────────────────────────────────────────────────
@@ -1084,6 +1306,10 @@ def render_figure(spec):
     fig_type = spec.get('type', 'triangle')
     cfg = spec.get('config', {})
     canvas_opts = spec.get('canvas', {})
+    for key in ('width', 'height'):
+        value = canvas_opts.get(key, 280 if key == 'width' else 220)
+        if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise ValueError('畫布尺寸必須是有限正數')
     cv = SVGCanvas(
         width=canvas_opts.get('width', 280),
         height=canvas_opts.get('height', 220),

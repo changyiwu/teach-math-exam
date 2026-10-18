@@ -73,6 +73,7 @@ macOS 反過來：cairosvg 用 `brew install cairo` 就裝得起來，通常直�
       "config": {
         "subtype": "right",
         "vertex_labels": ["A", "B", "C"],
+        "vertices": {"A": [4, 3], "B": [0, 0], "C": [0, 3]},
         "right_angle_at": "C",
         "side_labels": { "AB": "5", "BC": "3", "CA": "4" }
       },
@@ -102,7 +103,8 @@ Get-ChildItem "./output/figures"
 ## Step 4：視覺確認（必做）
 
 用 Read 工具查看 `./output/figures/*.png`，確認標籤位置、比例、標記都正確。
-有誤就調整 `config` 後重跑 Step 3。
+另以實際插入文件的尺寸檢查字級與線寬。有誤就調整 `config` 後重跑 Step 3。
+若回報幾何條件矛盾，修正頂點或標記；若標籤放不下，增加畫布或依參數目錄的 `label_offsets` 微調。
 
 ---
 
@@ -213,3 +215,4 @@ print('output/geometry.pptx')
    梯形的平行邊是 **AB 與 DC**，不是 AD 與 BC——標邊長前務必確認，否則會與題幹矛盾
 4. **字體**：SVG 使用 serif，轉 PNG 後在 Word/PPTX 中外觀一致
 5. **多圖批次**：`figures` 陣列可一次放多個圖形，`manifest.json` 記錄所有輸出路徑
+6. **示意與比例**：邊長文字不會自動改變圖形比例；需要精確比例的三角形請提供 `vertices`。直角、等邊、等角及直徑仍會檢查座標是否符合宣告

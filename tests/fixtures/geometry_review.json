@@ -1,0 +1,90 @@
+{
+  "figures": [
+    {
+      "id": "right_triangle",
+      "title": "直角三角形",
+      "note": "邊長移到圖形外側，保留直角與角弧",
+      "type": "triangle",
+      "config": {
+        "subtype": "right", "vertices": {"A": [4,3], "B": [0,0], "C": [0,3]},
+        "right_angle_at": "C", "angle_arcs": {"A": 1, "B": 2},
+        "side_labels": {"AB": "5", "BC": "3", "CA": "4"}
+      }
+    },
+    {
+      "id": "isosceles",
+      "title": "等腰三角形",
+      "note": "等邊刻度與底角一致，長標籤自動留白",
+      "type": "triangle",
+      "config": {
+        "subtype": "isosceles", "equal_marks": {"AC": 1, "BC": 1},
+        "angle_arcs": {"A": 1, "B": 1},
+        "side_labels": {"AB": "10 cm", "AC": "13 cm", "BC": "13 cm"}
+      }
+    },
+    {
+      "id": "right_trapezoid",
+      "title": "直角梯形",
+      "note": "AB 與 DC 平行，直角位於 A 與 D",
+      "type": "quadrilateral",
+      "config": {
+        "subtype": "right_trapezoid", "show_height": true, "height_label": "4",
+        "side_labels": {"AB": "10", "DC": "6"}
+      }
+    },
+    {
+      "id": "circle_dense",
+      "title": "密集圓周標籤",
+      "note": "右上方三個接近的圓周點分開標示",
+      "type": "circle",
+      "config": {
+        "points": {"A": 18, "B": 25, "C": 33, "D": 150, "E": 250},
+        "radius_lines": ["A", "D"], "central_angle": ["A", "D"],
+        "inscribed_angle": {"vertex": "E", "arc": ["A", "D"]}
+      }
+    },
+    {
+      "id": "custom_centroid",
+      "title": "自訂三角形重心",
+      "note": "重心與三條中線使用本體的實際頂點",
+      "type": "triangle_center",
+      "config": {
+        "center_type": "centroid",
+        "triangle": {"vertices": {"A": [0,3], "B": [6,3], "C": [1.2,0]}}
+      }
+    },
+    {
+      "id": "custom_circumcenter",
+      "title": "自訂鈍角三角形外心",
+      "note": "外接圓通過三個頂點，完整納入畫布",
+      "type": "triangle_center",
+      "config": {
+        "center_type": "circumcenter",
+        "triangle": {"vertices": {"A": [0,2], "B": [6,2], "C": [1,0]}}
+      }
+    },
+    {
+      "id": "custom_incenter",
+      "title": "自訂三角形內心",
+      "note": "內切圓與三邊相切，中心文字避開線段",
+      "type": "triangle_center",
+      "config": {
+        "center_type": "incenter",
+        "triangle": {"vertices": {"A": [0,3], "B": [6,3], "C": [1.2,0]}}
+      }
+    },
+    {
+      "id": "small_trapezoid",
+      "title": "並排小圖尺寸",
+      "note": "200 × 160 畫布，頂點與上下底標籤完整",
+      "type": "quadrilateral",
+      "canvas": {"width": 200, "height": 160},
+      "config": {
+        "subtype": "trapezoid", "equal_marks": {"AD": 1, "BC": 1},
+        "show_height": true, "height_label": "h",
+        "side_labels": {"AB": "10", "DC": "6"}
+      }
+    }
+  ],
+  "options": {"format": "png", "dpi": 300}
+}
