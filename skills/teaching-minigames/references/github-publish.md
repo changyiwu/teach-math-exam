@@ -50,23 +50,22 @@ if (gh repo view "$USER/$REPO" 2>$null) {
 用 git 推送（一次 commit 全部檔案，比逐檔呼叫 API 快且乾淨）：
 
 ```powershell
-$SRC = "./output"          # 遊戲 HTML 所在目錄
-$WORK = "./.publish-tmp"
+# $GAME 沿用技能Step 6，僅發佈當次網頁，不上傳來源教材或其他考卷。
+$SRC = Join-Path $GAME '網頁'
+if (-not (Test-Path -LiteralPath (Join-Path $SRC 'index.html'))) { throw '找不到當次遊戲索引頁' }
+$taskPublishRoot = Join-Path (Join-Path (Get-Location).Path 'output') '暫存'
+$WORK = Join-Path $taskPublishRoot ('publish-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force $taskPublishRoot | Out-Null
+git clone "https://github.com/$USER/$REPO.git" $WORK
+if ($LASTEXITCODE -ne 0) { throw '無法取得發佈儲存庫，請先確認repo及登入狀態' }
 
-git clone "https://github.com/$USER/$REPO.git" $WORK 2>$null
-if (-not (Test-Path $WORK)) {
-    New-Item -ItemType Directory $WORK | Out-Null
-    Push-Location $WORK; git init; git branch -M main
-    git remote add origin "https://github.com/$USER/$REPO.git"; Pop-Location
-}
-
-Copy-Item "$SRC\*.html" $WORK -Force
+Get-ChildItem -LiteralPath $SRC -File -Filter '*.html' | Copy-Item -Destination $WORK -Force
 Push-Location $WORK
 git add .
 git commit -m "發佈教學小遊戲"
 git push -u origin main
 Pop-Location
-Remove-Item $WORK -Recurse -Force
+# 發佈工作副本保留在output/暫存，確認發布結果後依需要清理。
 ```
 
 檔案少的時候也可以直接用 API 逐檔上傳：
@@ -74,9 +73,9 @@ Remove-Item $WORK -Recurse -Force
 ```powershell
 $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $SRC 'index.html')))
 $sha = gh api "repos/$USER/$REPO/contents/index.html" --jq .sha 2>$null
-$args = @("-f", "message=Update index.html", "-f", "content=$b64")
-if ($sha) { $args += @("-f", "sha=$sha") }
-gh api -X PUT "repos/$USER/$REPO/contents/index.html" @args
+$taskApiArgs = @("-f", "message=Update index.html", "-f", "content=$b64")
+if ($sha) { $taskApiArgs += @("-f", "sha=$sha") }
+gh api -X PUT "repos/$USER/$REPO/contents/index.html" @taskApiArgs
 ```
 
 ---

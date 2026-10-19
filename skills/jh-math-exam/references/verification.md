@@ -11,6 +11,7 @@
 - 各題單元符合 `scope_sections`（有提供時），Bloom 層次可判讀；數學大括號成對。
 - 新命題依 `source-planning.md` 提供主重點與來源規劃；合併教材題及網路題計算每個主重點，不能分開通過後才拼卷。
 - 檢查全卷來源80／20及主重點目標配分同時成立；來源比例正確但合併後重點失衡仍報錯。網路題未審閱或內容已改動時禁止正式匯出。
+- 網路題另提供 `--curriculum-report`：逐題列官方學習內容、學習表現、PDF頁碼與備註／範圍／解法核對理由，綁定題目及官方PDF版本；未符合官方課綱、缺漏或過期即禁止正式匯出。規格見 `source-planning.md`。
 - 提到「如圖」等字樣時有相對應圖形；正式匯出需要的 PNG 存在且可解碼。
 
 答案平均分布與連續重複目前以警告提醒，命題者依 SKILL.md 的規則調整，不由程式自動換答案。
@@ -18,7 +19,8 @@
 
 ## 本份考卷的驗算腳本
 
-每份考卷在 `output/verify_math.py` 撰寫獨立驗算。可以使用標準函式庫的 `Fraction` 精確計算，
+完整考卷依 [場次資料夾規格](exam-template.md) 存放；以下 `data_dir` 指當次考卷的 `命題資料/`。
+每份考卷在該處撰寫 `verify_math.py` 獨立驗算。可以使用標準函式庫的 `Fraction` 精確計算，
 或已可用的代數工具。不要為所有題型假造一個「通用解題器」。
 
 1. 讀取最終 `exam_data.json`，從題幹條件重建算式、方程式或限制。
@@ -41,7 +43,7 @@ checks.append({
     "method": "由題幹獨立化簡，再逐一比較四選項與解析中的等價式"
 })
 # 所有作答單位完成後：
-write_math_report(exam, checks, "output/math_check.json")
+write_math_report(exam, checks, data_dir / "math_check.json")
 ```
 
 驗算腳本用絕對技能路徑加入 `sys.path`（先以 PowerShell `Join-Path` 組路徑），不要複製 helper。
@@ -52,15 +54,17 @@ write_math_report(exam, checks, "output/math_check.json")
 | 選擇題 | `mc_1` |
 | 填充題 | `fill_1` |
 | 計算子題 | `open_1_1` |
-| 情境非選子題 | `q1_sub1`、`q1_sub2` |
+| 情境非選子題 | 同計算子題：`open_1_1`、`open_1_2` |
 
 報告含 `schema_version: 1`、整份考卷的 `exam_sha256` 與 `checks`。
 它防止漏驗題目或沿用過期結果，不會自行證明腳本的數學推理正確。
-一般匯出必須加 `--math-report output/math_check.json`；審題的 `--blueprint-only` 不要求補造答案或驗算。
+一般匯出必須加 `--math-report` 指向當次 `命題資料/math_check.json`；審題的 `--blueprint-only` 不要求補造答案或驗算。
+含網路題另加 `--curriculum-report` 指向同處的 `curriculum_review.json`，不能以驗算通過或使用者同意取代官方課綱核對。
 
 ## 教材對照與原創數值
 
-在當次 `output/` 留下教材對照紀錄，包含來源檔名／PDF 頁碼、能力點、對應題號與排除範圍。
+在當次考卷的 `來源資料/` 留下教材萃取與對照影像，`命題資料/review_sources.json` 保留來源對照；驗收結論放 `驗收紀錄/`。
+紀錄包含來源檔名／PDF 頁碼、能力點、對應題號與排除範圍。
 內建課綱不能冒充使用者提供的課本或習作；頁碼用 PDF 頁碼，若另有書頁碼再註明。
 
 從能力點重新設計題幹、數值與情境。逐題核對以下項目：

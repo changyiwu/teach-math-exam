@@ -82,11 +82,12 @@ class ExamValidationTests(unittest.TestCase):
         with self.assertRaises(ExamValidationError):
             mc_points(data)
 
-    def test_legacy_scoring_text_is_supported_but_contradictions_are_rejected(self):
+    def test_explicit_points_are_required_and_scoring_text_is_cross_checked(self):
         data = valid_exam()
         for q in data['mc_questions']:
             del q['points']
-        self.assertEqual(validate_exam(data)['total_points'],24)
+        with self.assertRaises(ExamValidationError):
+            validate_exam(data)
         for text in ['每題5分，共10分','1~2題每題4分、2~2題每題4分','1~3題每題4分','每題4分，共9分','選擇3題，每題4分，共8分']:
             bad = valid_exam(); bad['mc_scoring']=text
             with self.subTest(text=text), self.assertRaises(ExamValidationError):
@@ -123,18 +124,23 @@ class ExamValidationTests(unittest.TestCase):
                 with self.assertRaises(ExamValidationError):
                     validate_math_report(data,{**report,'checks':rows})
 
-    def test_context_mode_and_review_mode_are_preserved(self):
+    def test_context_uses_common_open_questions_and_old_schema_is_rejected(self):
         data = valid_exam()
         data['mc_questions'][0].pop('solution')
         self.assertEqual(validate_exam(data,blueprint_only=True)['total_points'],24)
         subs = deepcopy(data['open_questions'][0]['sub_questions'])
-        context = {'grade':'七年級','unit':'一元一次方程式','total_points':12,
-                   'questions':[{'number':1,'total_points':12,'source':'以方程式解題。',
-                                 'sub1':subs[0],'sub2':subs[1]}]}
+        context = {'grade':'七年級','scope':'一元一次方程式','total_points':12,
+                   'open_questions':[{'number':1,'section':'一元一次方程式','total_points':12,
+                                      'context':'以方程式解題。','sub_questions':subs}]}
         self.assertEqual(validate_exam(context)['answer_units'],2)
-        context['questions'][0]['sub2']['points']=5
+        context['open_questions'][0]['sub_questions'][1]['points']=5
         with self.assertRaises(ExamValidationError):
             validate_exam(context)
+        old = {'grade':'七年級','unit':'一元一次方程式','total_points':12,
+                   'questions':[{'number':1,'total_points':12,'source':'以方程式解題。',
+                                 'sub1':subs[0],'sub2':subs[1]}]}
+        with self.assertRaisesRegex(ExamValidationError,'舊格式已停用'):
+            validate_exam(old)
 
     def test_both_default_hundred_point_configurations_are_supported(self):
         for open_count, open_points in ((5,4),(4,5)):
@@ -154,15 +160,15 @@ class ExamValidationTests(unittest.TestCase):
                 self.assertEqual(result['total_points'],100)
                 self.assertEqual(result['answer_units'],20+2*open_count)
 
-    def test_documented_exam_example_has_consistent_sections_and_scoring(self):
-        import re
-        text=(SCRIPTS.parent/'SKILL.md').read_text(encoding='utf-8')
-        block=re.search(r'```json\s*(.*?)```',text,re.S).group(1)
-        self.assertEqual(validate_exam(json.loads(block))['total_points'],24)
+    def test_blank_template_cannot_be_exported_as_a_real_exam(self):
+        data=json.loads((SCRIPTS.parent/'assets/exam-template.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['total_points'],100)
+        with self.assertRaises(ExamValidationError):
+            validate_exam(data)
 
     def test_cli_does_not_create_partial_outputs_on_failure_or_validate_only(self):
         with tempfile.TemporaryDirectory() as folder:
-            src, output = Path(folder)/'exam.json', Path(folder)/'documents'
+            src, output = Path(folder)/'exam.json', Path(folder)/'Word'
             src.write_text(json.dumps(valid_exam(),ensure_ascii=False),encoding='utf-8')
             command = [sys.executable,str(SCRIPTS/'generate_exam_docx.py'),str(src),str(output)]
             self.assertEqual(subprocess.run(command+['--validate-only'],capture_output=True).returncode,0)

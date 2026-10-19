@@ -1,0 +1,20 @@
+{
+  "school_name": "",
+  "school_year": "",
+  "semester": "",
+  "exam_number": "",
+  "grade": "",
+  "teacher": "",
+  "version": "",
+  "scope": "",
+  "total_points": 100,
+  "duration_minutes": 45,
+  "expected_counts": {"mc": 10, "fill": 10, "open": 5},
+  "mc_scoring": "1~10題每題4分，共40分",
+  "scope_sections": [],
+  "source_policy": {"basis": "points", "material_percent": 80, "web_percent": 20},
+  "content_plan": [],
+  "mc_questions": [],
+  "fill_questions": [],
+  "open_questions": []
+}

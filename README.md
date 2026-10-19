@@ -14,7 +14,7 @@
 | 技能 | 用途 | 額外檔案 |
 |------|------|----------|
 | [`jh-math-exam`](skills/jh-math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
-| [`jh-math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學「生活情境非選擇題」命題。結合時事／生活情境，產出 Bloom 應用／分析層次的兩小題式非選題（共五大題，含詳解）。 | — |
+| [`jh-math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學生活情境非選題命題，兩小題式理解／應用／分析題；共用現行題目格式及B4雙欄分卷，解析保留供驗算。 | — |
 | [`jh-math-geometry`](skills/jh-math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
 | [`teaching-minigames`](skills/teaching-minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
 
@@ -57,15 +57,26 @@ Copy-Item teaching-exam-skills/skills/* (Join-Path $HOME '.claude/skills') -Recu
 | **生圖**（選配） | `jh-math-context-questions` 的情境插圖需要 `agent-draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
 
 所有產出一律寫到**當前工作目錄的 `output/`**。
+完整考卷按場次存入 `output/{學年度}-{學期}-{段考次別}-{年級數字}年級/`，年級數字1／2／3對應七／八／九年級，例如 `115-1-3-1年級`。
+每場分成 `Word/`、`PDF/`、`命題資料/`、`來源資料/`、`驗收紀錄/`、`歷史版本/`，根目錄附檔案索引及整套考卷壓縮檔。
+研究與技能測試另放 `output/開發與研究/`，暫存放 `output/暫存/`；各場次不共用或覆蓋命題資料。
+獨立情境卷、幾何圖與小遊戲也各建有主題及版本的資料夾；配圖存來源資料、遊戲HTML存當次網頁資料夾，不平鋪output根目錄。
+兩個出題技能共用 [題目資料格式](skills/jh-math-exam/references/question-schema.md)；正式匯出拒絕舊情境格式、缺少逐題配分／全卷規劃／審題來源的資料，以及直接指定DOCX或平鋪目錄的舊用法。
 
 ## 段考預設與驗收
+
+完整命題從 [段考命題預設範本](skills/jh-math-exam/references/exam-template.md) 開始，
+並複製 [100分空白JSON範本](skills/jh-math-exam/assets/exam-template.json) 到當次考卷的 `命題資料/exam_data.json` 填寫。
+範本整合本專案確認的配分、全卷重點分布、80／20來源、網路題審閱、四種考卷格式及驗收要求。
 
 未另行指定時：選擇題 10 題 × 4 分、填充題 10 題 × 4 分、計算題 5 題 × 4 分（可改為 4 題 × 5 分），總分 100 分。
 提供版本與章節可先規劃；提供課本與習作後，會對照能力點及原題數值組合，重新設計題目。
 命題前先列章內重點配分表；預設按配分80%取材自提供教材、20%取材自公開網路資料或題庫。
 兩類來源合併驗收全卷重點比例，不能各自配比後拼接。
 網路候選題需附完整題目、答案及來源，經使用者審閱同意才納入正式卷；改題後須重審。
-題目與教師答案卷預設B4直式雙欄，未知數採Cambria Math斜體，數字係數後的乘號省略。
+網路題另須符合[官方國中課綱條文與備註](skills/jh-math-exam/references/national-math-curriculum.md)及當次已教範圍；正式匯出加 `--curriculum-report`，缺少有效的逐題核對紀錄即停止。官方原PDF已收在同目錄供回查。
+題目卷、學生答案卷、教師答案卷預設B4直式雙欄，未知數採Cambria Math斜體，數字係數後的乘號省略。
+學生答案卷包含選擇／填充題的空白答案表格及計算題作答空間；教師版只列答案。
 來源及重點規劃欄位見 [來源規劃](skills/jh-math-exam/references/source-planning.md)。
 
 匯出器先檢查題號、選項、單元、題數與總分；缺分、矛盾配分或缺圖直接停止。

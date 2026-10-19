@@ -64,7 +64,7 @@ def mc_points(data):
     result = {}
     for question in questions:
         number = question['number']
-        value = question.get('points', parsed.get(number))
+        value = question.get('points')
         positive_number(value, f'選擇第 {number} 題配分')
         if number in parsed and Decimal(str(value)) != Decimal(str(parsed[number])):
             raise ExamValidationError(f'選擇第 {number} 題 points 與 mc_scoring 不一致')
@@ -83,9 +83,7 @@ def exam_kind(data):
     if not isinstance(data, dict):
         raise ExamValidationError('考卷 JSON 必須是物件')
     if 'questions' in data:
-        if data.get('mc_questions') or data.get('fill_questions') or data.get('open_questions'):
-            raise ExamValidationError('不可混用段考與情境非選題的題目結構')
-        return 'context'
+        raise ExamValidationError('questions/sub1/sub2 舊格式已停用；請改用 open_questions/sub_questions，重新驗算並審閱')
     return 'exam'
 
 
@@ -116,19 +114,15 @@ def question_list(value, where):
 
 def leaf_questions(data):
     """傳回所有需要驗算的作答單位；與幾何圖 id 的命名一致。"""
-    if exam_kind(data) == 'context':
-        for big in data.get('questions', []):
-            for key in ('sub1', 'sub2'):
-                yield f"q{big['number']}_{key}", big[key], 'open'
-    else:
-        for question in data.get('mc_questions', []) or []:
-            yield f"mc_{question['number']}", question, 'mc'
-        for question in data.get('fill_questions', []) or []:
-            yield f"fill_{question['number']}", question, 'fill'
-        for big in data.get('open_questions', []) or []:
-            for sub in big.get('sub_questions', []):
-                label = sub['label'].strip('()（）')
-                yield f"open_{big['number']}_{label}", sub, 'open'
+    exam_kind(data)
+    for question in data.get('mc_questions', []) or []:
+        yield f"mc_{question['number']}", question, 'mc'
+    for question in data.get('fill_questions', []) or []:
+        yield f"fill_{question['number']}", question, 'fill'
+    for big in data.get('open_questions', []) or []:
+        for sub in big.get('sub_questions', []):
+            label = sub['label'].strip('()（）')
+            yield f"open_{big['number']}_{label}", sub, 'open'
 
 
 def validate_exam(data, *, blueprint_only=False, figures_dir=None, check_figures=False,
@@ -144,9 +138,7 @@ def validate_exam(data, *, blueprint_only=False, figures_dir=None, check_figures
         for key in ('mc_rows', 'fill_rows', 'open_rows', 'quality_issues'):
             if key in report and (not isinstance(report[key], list) or any(not isinstance(row, dict) for row in report[key])):
                 raise ExamValidationError(f'review_report.{key} 必須是物件陣列')
-    if kind == 'context' and blueprint_only:
-        raise ExamValidationError('情境非選題不支援 --blueprint-only')
-    for key in ('grade', 'unit' if kind == 'context' else 'scope'):
+    for key in ('grade', 'scope'):
         require_text(data.get(key), key)
     if not blueprint_only:
         positive_number(data.get('total_points'), '試卷 total_points')
@@ -193,82 +185,61 @@ def validate_exam(data, *, blueprint_only=False, figures_dir=None, check_figures
                 raise ExamValidationError(f'{where} 單元「{section}」不在 scope_sections 範圍中')
 
     all_points = []
-    if kind == 'exam':
-        mc = question_list(data.get('mc_questions', []) or [], '選擇題')
-        fills = question_list(data.get('fill_questions', []) or [], '填充題')
-        opens = question_list(data.get('open_questions', []) or [], '非選題')
-        if not mc and not fills and not opens:
-            raise ExamValidationError('試卷不可沒有題目')
-        expected_counts = data.get('expected_counts')
-        if expected_counts is not None:
-            actual = {'mc':len(mc), 'fill':len(fills), 'open':len(opens)}
-            if (not isinstance(expected_counts, dict) or set(expected_counts) != set(actual)
-                    or any(type(n) is not int or n < 0 for n in expected_counts.values())
-                    or expected_counts != actual):
-                raise ExamValidationError(f'題型數量與 expected_counts 不符，實際為 {actual}')
-        points = mc_points(data)
-        for question in mc:
-            number = question['number']
-            # 不寫回輸入資料；讓由配分說明解析的舊規格仍可使用。
-            checked = {**question, 'points': points[number]}
-            inspect_leaf(checked, f'選擇第 {number} 題')
-            if not blueprint_only:
-                options = question.get('options')
-                if not isinstance(options, dict) or set(options) != set('ABCD'):
-                    raise ExamValidationError(f'選擇第 {number} 題必須提供 A/B/C/D 四個選項')
-                for key, value in options.items():
-                    require_text(value, f'選擇第 {number} 題選項 {key}')
-                if len({normalized_text(v) for v in options.values()}) != 4:
-                    raise ExamValidationError(f'選擇第 {number} 題有重複選項')
-                if question.get('answer') not in options:
-                    raise ExamValidationError(f'選擇第 {number} 題答案必須是 A/B/C/D')
-            inspect_geometry(question, f'mc_{number}_fig', question['question'])
-            all_points.append(points[number])
-        for question in fills:
-            number = question['number']
-            inspect_leaf(question, f'填充第 {number} 題')
-            inspect_geometry(question, f'fill_{number}_fig', question['question'])
-            all_points.append(question['points'])
-        for big in opens:
-            number = big['number']
-            positive_number(big.get('total_points'), f'非選第 {number} 題總分')
-            require_text(big.get('context'), f'非選第 {number} 題題幹')
-            inherited = inspect_geometry(big, f'open_{number}_fig', big['context'])
-            subs = big.get('sub_questions')
-            if not isinstance(subs, list) or not subs or any(not isinstance(s, dict) for s in subs):
-                raise ExamValidationError(f'非選第 {number} 題需要子題陣列')
-            labels = []
-            for sub in subs:
-                match = re.fullmatch(r'[（(](\d+)[）)]', str(sub.get('label', '')))
-                labels.append(int(match.group(1)) if match else None)
-            if labels != list(range(1, len(subs)+1)):
-                raise ExamValidationError(f'非選第 {number} 題子題須以 (1)、(2) 連續排列')
-            for i, sub in enumerate(subs, 1):
-                inspect_leaf(sub, f'非選第 {number} 題 ({i})', big.get('section'))
-                inspect_geometry(sub, f'open_{number}_{i}_fig', sub['question'], inherited)
-            subtotal = score_sum(sub['points'] for sub in subs)
-            if subtotal != Decimal(str(big['total_points'])):
-                raise ExamValidationError(f'非選第 {number} 題子題合計 {subtotal} 分，與大題總分不符')
-            all_points.extend(sub['points'] for sub in subs)
-    else:
-        questions = question_list(data.get('questions'), '情境非選題')
-        if not questions:
-            raise ExamValidationError('情境非選題不可沒有題目')
-        for big in questions:
-            number = big['number']
-            positive_number(big.get('total_points'), f'情境第 {number} 題總分')
-            require_text(big.get('source'), f'情境第 {number} 題素材')
-            inherited = inspect_geometry(big, f'q{number}_main', big['source'])
-            for key in ('sub1', 'sub2'):
-                sub = big.get(key)
-                if not isinstance(sub, dict):
-                    raise ExamValidationError(f'情境第 {number} 題缺少 {key}')
-                inspect_leaf(sub, f'情境第 {number} 題 {key}', require_bloom=(key == 'sub2'))
-                inspect_geometry(sub, f'q{number}_{key}', sub['question'], inherited)
-            subtotal = score_sum(big[key]['points'] for key in ('sub1', 'sub2'))
-            if subtotal != Decimal(str(big['total_points'])):
-                raise ExamValidationError(f'情境第 {number} 題兩小題配分合計與總分不符')
-            all_points.append(big['total_points'])
+    mc = question_list(data.get('mc_questions', []) or [], '選擇題')
+    fills = question_list(data.get('fill_questions', []) or [], '填充題')
+    opens = question_list(data.get('open_questions', []) or [], '非選題')
+    if not mc and not fills and not opens:
+        raise ExamValidationError('試卷不可沒有題目')
+    expected_counts = data.get('expected_counts')
+    if expected_counts is not None:
+        actual = {'mc':len(mc), 'fill':len(fills), 'open':len(opens)}
+        if (not isinstance(expected_counts, dict) or set(expected_counts) != set(actual)
+                or any(type(n) is not int or n < 0 for n in expected_counts.values())
+                or expected_counts != actual):
+            raise ExamValidationError(f'題型數量與 expected_counts 不符，實際為 {actual}')
+    points = mc_points(data)
+    for question in mc:
+        number = question['number']
+        checked = {**question, 'points': points[number]}
+        inspect_leaf(checked, f'選擇第 {number} 題')
+        if not blueprint_only:
+            options = question.get('options')
+            if not isinstance(options, dict) or set(options) != set('ABCD'):
+                raise ExamValidationError(f'選擇第 {number} 題必須提供 A/B/C/D 四個選項')
+            for key, value in options.items():
+                require_text(value, f'選擇第 {number} 題選項 {key}')
+            if len({normalized_text(v) for v in options.values()}) != 4:
+                raise ExamValidationError(f'選擇第 {number} 題有重複選項')
+            if question.get('answer') not in options:
+                raise ExamValidationError(f'選擇第 {number} 題答案必須是 A/B/C/D')
+        inspect_geometry(question, f'mc_{number}_fig', question['question'])
+        all_points.append(points[number])
+    for question in fills:
+        number = question['number']
+        inspect_leaf(question, f'填充第 {number} 題')
+        inspect_geometry(question, f'fill_{number}_fig', question['question'])
+        all_points.append(question['points'])
+    for big in opens:
+        number = big['number']
+        positive_number(big.get('total_points'), f'非選第 {number} 題總分')
+        require_text(big.get('context'), f'非選第 {number} 題題幹')
+        inherited = inspect_geometry(big, f'open_{number}_fig', big['context'])
+        subs = big.get('sub_questions')
+        if not isinstance(subs, list) or not subs or any(not isinstance(s, dict) for s in subs):
+            raise ExamValidationError(f'非選第 {number} 題需要子題陣列')
+        labels = []
+        for sub in subs:
+            match = re.fullmatch(r'[（(](\d+)[）)]', str(sub.get('label', '')))
+            labels.append(int(match.group(1)) if match else None)
+        if labels != list(range(1, len(subs)+1)):
+            raise ExamValidationError(f'非選第 {number} 題子題須以 (1)、(2) 連續排列')
+        for i, sub in enumerate(subs, 1):
+            inspect_leaf(sub, f'非選第 {number} 題 ({i})', big.get('section'))
+            inspect_geometry(sub, f'open_{number}_{i}_fig', sub['question'], inherited)
+        subtotal = score_sum(sub['points'] for sub in subs)
+        if subtotal != Decimal(str(big['total_points'])):
+            raise ExamValidationError(f'非選第 {number} 題子題合計 {subtotal} 分，與大題總分不符')
+        all_points.extend(sub['points'] for sub in subs)
     total = score_sum(all_points)
     if 'total_points' in data and total != Decimal(str(data['total_points'])):
         raise ExamValidationError(f'試卷實際合計 {total} 分，與宣告 total_points={data["total_points"]} 不符')
@@ -320,7 +291,7 @@ def source_question_digest(data, qid):
 
 
 def validate_content_plan(data, total, allow_pending):
-    """新版命題以配分核對主重點及80/20來源；舊資料仍可讀取。"""
+    """以配分核對主重點及來源；正式匯出另要求規劃欄位齊全。"""
     if 'source_policy' not in data and 'content_plan' not in data:
         return []
     plan, policy = data.get('content_plan'), data.get('source_policy')
@@ -379,6 +350,67 @@ def validate_content_plan(data, total, allow_pending):
     if pending and not allow_pending:
         raise ExamValidationError('網路題尚未經使用者審閱或已修改，禁止正式匯出：'+', '.join(pending))
     return ['網路候選題待審，不能作為正式卷：'+', '.join(pending)] if pending else []
+
+
+def official_curriculum_index():
+    """以同目錄官方PDF及其Markdown萃取核對版本、代碼和條文頁碼。"""
+    refs = Path(__file__).resolve().parents[1] / 'references'
+    pdf = refs / '十二年國民基本教育課程綱要國民中小學暨普通型高級中等學校-數學領域.pdf'
+    text = (refs / 'national-math-curriculum.md').read_text(encoding='utf-8')
+    digest = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    recorded = re.search(r'PDF SHA-256：`([0-9a-f]{64})`', text)
+    if not recorded or recorded[1] != digest:
+        raise ExamValidationError('官方課綱PDF與Markdown版本不符，須重新核對萃取內容')
+    codes = {}
+    for match in re.finditer(r'^### ((?:[NSGAFD]-[789]-\d+|[nsgafd]-IV-\d+))\s*\n\s*'
+                             r'- 官方位置：PDF第([0-9,]+)頁', text, re.M):
+        codes[match[1]] = {int(p) for p in match[2].split(',')}
+    if len(codes) != 111:
+        raise ExamValidationError('官方國中課綱索引不完整：須有73項學習內容與38項學習表現')
+    return digest, codes
+
+
+def validate_web_curriculum(data, report=None, *, allow_pending=False):
+    """不以核對紀錄冒充自動語意審查；正式匯出必須有逐題、同版本證據。"""
+    expected = {qid for qid, q, _ in leaf_questions(data)
+                if isinstance(q.get('provenance'), dict) and q['provenance'].get('kind') == 'web'}
+    if not expected and report is None:
+        return []
+    if report is None:
+        if allow_pending:
+            return ['網路題尚缺官方課綱核對紀錄，不能視為正式驗收通過']
+        raise ExamValidationError('網路題正式匯出須提供 --curriculum-report，逐題核對官方課綱與備註')
+    if not isinstance(report, dict) or report.get('schema_version') != 1 or report.get('exam_sha256') != exam_digest(data):
+        raise ExamValidationError('官方課綱核對紀錄已過期或格式錯誤，須依目前題目重新核對')
+    digest, codes = official_curriculum_index()
+    if report.get('official_pdf_sha256') != digest:
+        raise ExamValidationError('官方課綱版本已變更，不能沿用舊核對紀錄')
+    rows = report.get('checks')
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ExamValidationError('官方課綱核對checks須為逐題紀錄陣列')
+    if len(rows) != len(expected) or {row.get('id') for row in rows} != expected:
+        raise ExamValidationError('官方課綱核對須完整涵蓋全部網路作答單位，不能缺漏、重複或多列')
+    for row in rows:
+        qid = row['id']
+        for flag in ('compliant', 'in_scope', 'remarks_checked', 'methods_in_scope'):
+            if row.get(flag) is not True:
+                raise ExamValidationError(f'{qid} 尚未符合官方課綱、備註或本次範圍：{flag}')
+        for field, pattern in (('content_codes', r'[NSGAFD]-[789]-\d+'),
+                               ('performance_codes', r'[nsgafd]-IV-\d+')):
+            values = row.get(field)
+            if not isinstance(values, list) or not values or any(
+                    not isinstance(value, str) or not re.fullmatch(pattern, value) or value not in codes
+                    for value in values):
+                raise ExamValidationError(f'{qid} 缺少有效的官方課綱 {field}')
+        pages = row.get('official_pdf_pages')
+        if not isinstance(pages, list) or not pages or any(type(p) is not int or p < 1 or p > 83 for p in pages):
+            raise ExamValidationError(f'{qid} 官方PDF頁碼無效')
+        for code in row['content_codes'] + row['performance_codes']:
+            if not codes[code].intersection(pages):
+                raise ExamValidationError(f'{qid} 官方PDF頁碼未對應條文 {code}')
+        for field in ('scope_note', 'remarks_note', 'method_note'):
+            require_text(row.get(field), f'{qid} 官方課綱實際核對理由 {field}')
+    return []
 
 
 def validate_math_report(data, report):

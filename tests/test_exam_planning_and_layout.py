@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 
 from docx import Document
 from docx.oxml.ns import qn
@@ -10,7 +11,10 @@ from lxml import etree
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'skills/jh-math-exam/scripts'))
 from exam_validation import validate_exam, ExamValidationError, source_question_digest
-from generate_exam_docx import start_exam_columns
+from generate_exam_docx import (exam_header, build_exam_paper, build_student_answer_paper,
+                                build_answer_paper, Figures, validate_question_review_sources,
+                                build_question_review)
+from exam_validation import exam_digest
 from math_omml import add_rich_text, build_omath, plain_text, M_NS
 
 
@@ -28,6 +32,43 @@ def planned_exam():
 
 
 class PlanningAndLayoutTests(unittest.TestCase):
+    def review_sources(self, data):
+        return dict(schema_version=1,exam_sha256=exam_digest(data),questions={
+            f'fill_{q["number"]}':dict(relationship='concept_reference' if q['provenance']['kind']=='web' else 'concept_original',sources=[dict(
+                kind='web' if q['provenance']['kind']=='web' else 'workbook',
+                title='來源名稱',locator='印刷第55頁；PDF第2頁；第3題',
+                original='原題標記：化簡 {3*x-x}。',transcription='原題轉錄',
+                url='https://example.org/question')]) for q in data['fill_questions']})
+
+    def test_question_review_rejects_missing_stale_and_incomplete_sources(self):
+        data=planned_exam()
+        for mutation in (
+            lambda s: s['questions'].pop('fill_1'),
+            lambda s: s.update(exam_sha256='stale'),
+            lambda s: s['questions']['fill_1']['sources'][0].pop('original'),
+            lambda s: s['questions']['fill_1']['sources'][0].update(kind='web'),
+        ):
+            sources=self.review_sources(data); mutation(sources)
+            with self.assertRaises(ExamValidationError):
+                validate_question_review_sources(data,sources)
+
+    def test_question_review_has_originals_and_classifications_without_solutions(self):
+        data=planned_exam(); sources=self.review_sources(data)
+        for q in data['fill_questions']: q['solution']='不可印出的解析'
+        sources['exam_sha256']=exam_digest(data)
+        with tempfile.TemporaryDirectory() as folder:
+            doc=Document(build_question_review(data,Path(folder),Figures(None),sources))
+            text='\n'.join(p.text for p in doc.paragraphs)
+            for part in ('第一部分：本次題目','第二部分：來源與原題','第三部分：重點分類'):
+                self.assertEqual(text.count(part),5)
+            self.assertIn('非原先直接改編題',text)
+            self.assertIn('原題標記',text)
+            self.assertIn('合併同類項',text)
+            self.assertNotIn('不可印出的解析',text)
+            self.assertIn('oMath',doc.element.xml)
+            self.assertNotIn('{3*x-x}',text)
+            self.assertEqual(doc.sections[0]._sectPr.find(qn('w:cols')).get(qn('w:num')),'2')
+
     def test_pending_web_blocks_formal_but_allows_review(self):
         data = planned_exam()
         self.assertTrue(validate_exam(data,allow_pending_web=True)['warnings'])
@@ -79,12 +120,45 @@ class PlanningAndLayoutTests(unittest.TestCase):
             validate_exam(data,allow_pending_web=True)
 
     def test_columns_start_after_full_width_header(self):
-        doc=Document(); doc.add_paragraph('跨欄卷頭')
-        start_exam_columns(doc); doc.add_paragraph('雙欄題目')
-        self.assertEqual(len(doc.sections),2)
-        self.assertNotEqual(doc.sections[0]._sectPr.find(qn('w:cols')).get(qn('w:num')),'2')
-        self.assertEqual(doc.sections[1]._sectPr.find(qn('w:cols')).get(qn('w:num')),'2')
-        self.assertEqual(doc.sections[1]._sectPr.find(qn('w:cols')).get(qn('w:space')),'454')
+        doc=Document(); exam_header(doc,{'total_points':100},'題目卷')
+        doc.add_paragraph('雙欄題目')
+        self.assertEqual(len(doc.sections),1)
+        self.assertTrue(doc.sections[0].header.tables)
+        self.assertEqual(doc.sections[0]._sectPr.find(qn('w:cols')).get(qn('w:num')),'2')
+        self.assertEqual(doc.sections[0]._sectPr.find(qn('w:cols')).get(qn('w:space')),'454')
+        self.assertIn('＿＿＿＿國中',doc.sections[0].header.tables[0].cell(0,0).text)
+        custom=Document(); exam_header(custom,{'total_points':100,'school_name':'測試國中'},'題目卷')
+        self.assertIn('測試國中',custom.sections[0].header.tables[0].cell(0,0).text)
+        self.assertNotIn('＿＿＿＿國中',custom.sections[0].header.tables[0].cell(0,0).text)
+
+    def test_student_sheet_has_blank_answer_cells_and_teacher_key_excludes_solutions(self):
+        from test_exam_validation import valid_exam
+        data=valid_exam()
+        data['fill_questions'][0]['answer']='教師專用答案'
+        for questions in ('mc_questions','fill_questions'):
+            for q in data[questions]: q['solution']='解析隱藏標記'
+        for sub in data['open_questions'][0]['sub_questions']: sub['solution']='解析隱藏標記'
+        with tempfile.TemporaryDirectory() as folder:
+            student=Document(build_student_answer_paper(data,Path(folder),Figures(None)))
+            for table in student.tables:
+                grid=table.cell(0,0).tables[0]
+                self.assertTrue(all(not cell.text.strip() for cell in grid.rows[1].cells[1:]))
+            student_text=''.join(student.element.itertext())
+            self.assertNotIn('教師專用答案',student_text)
+            self.assertNotIn('解析隱藏標記',student_text)
+            self.assertIn('每個書袋同價',student_text)
+            teacher=Document(build_answer_paper(data,Path(folder)))
+            teacher_text=''.join(teacher.element.itertext())
+            self.assertIn('教師專用答案',teacher_text)
+            self.assertNotIn('解析隱藏標記',teacher_text)
+            self.assertNotIn('每個書袋同價',teacher_text)
+            self.assertNotIn('常數項是何者',teacher_text)
+            paper=Document(build_exam_paper(data,Path(folder),Figures(None)))
+            fill=next(p for p in paper.paragraphs if '化簡' in p.text)
+            self.assertNotIn('分）',fill.text)
+            self.assertGreater(fill.paragraph_format.left_indent,0)
+            self.assertLess(fill.paragraph_format.first_line_indent,0)
+            self.assertEqual(len(paper.sections),1)
 
 
 if __name__=='__main__':

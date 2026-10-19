@@ -32,7 +32,14 @@ $GEOM = Join-Path $SKILLS 'jh-math-geometry/scripts'
 if (-not (Test-Path (Join-Path $GEOM 'geometry_renderer.py'))) {
     throw "找不到技能腳本，請確認 jh-math-geometry 已正確安裝：$GEOM"
 }
-New-Item -ItemType Directory -Force "./output" | Out-Null
+# 被出題技能呼叫時沿用當次 $EXAM；獨立製圖另建以主題及版本命名的資料夾。
+if (-not (Get-Variable EXAM -ErrorAction SilentlyContinue)) {
+    $EXAM = Join-Path (Join-Path (Get-Location).Path 'output') '幾何圖-{主題}-{版本}'
+}
+$FIGURES = Join-Path $EXAM '來源資料/配圖'
+foreach ($folder in @('來源資料/配圖', 'Word', '簡報', '驗收紀錄', '歷史版本')) {
+    New-Item -ItemType Directory -Force (Join-Path $EXAM $folder) | Out-Null
+}
 ```
 
 ### SVG → PNG 轉檔後端
@@ -62,7 +69,7 @@ macOS 反過來：cairosvg 用 `brew install cairo` 就裝得起來，通常直�
 
 ## Step 2：建立圖形規格 JSON
 
-存成 `./output/geometry_spec.json`：
+存成當次 `$FIGURES/geometry_spec.json`；將資料夾名稱占位符換成實際主題與版本：
 
 ```json
 {
@@ -91,9 +98,9 @@ macOS 反過來：cairosvg 用 `brew install cairo` 就裝得起來，通常直�
 ## Step 3：渲染
 
 ```powershell
-& $PY (Join-Path $GEOM 'geometry_renderer.py') "./output/geometry_spec.json" "./output/figures/"
+& $PY (Join-Path $GEOM 'geometry_renderer.py') (Join-Path $FIGURES 'geometry_spec.json') $FIGURES
 if ($LASTEXITCODE -ne 0) { throw "渲染失敗，請檢查上方錯誤訊息" }
-Get-ChildItem "./output/figures"
+Get-ChildItem -LiteralPath $FIGURES
 ```
 
 輸出 `{id}.svg`、`{id}.png` 與 `manifest.json`（記錄所有輸出路徑）。
@@ -102,7 +109,7 @@ Get-ChildItem "./output/figures"
 
 ## Step 4：視覺確認（必做）
 
-用 Read 工具查看 `./output/figures/*.png`，確認標籤位置、比例、標記都正確。
+用 Read 工具查看 當次 `$FIGURES` 下的PNG，確認標籤位置、比例、標記都正確。
 另以實際插入文件的尺寸檢查字級與線寬。有誤就調整 `config` 後重跑 Step 3。
 若回報幾何條件矛盾，修正頂點或標記；若標籤放不下，增加畫布或依參數目錄的 `label_offsets` 微調。
 
@@ -111,37 +118,39 @@ Get-ChildItem "./output/figures"
 ## Step 5：輸出
 
 ### 純圖片
-圖片已在 `./output/figures/`，直接回報路徑即可。
+圖片已在 當次 `$FIGURES`，直接回報路徑即可。
 
 ### 插入 Word
 
 ```powershell
-& $PY -c @"
+& $PY -c @'
 import sys
-sys.path.insert(0, r'$GEOM')
+sys.path.insert(0, sys.argv[1])
 from docx import Document
 from insert_to_docx import figures_from_manifest
 doc = Document()
-figures_from_manifest('output/figures/manifest.json', doc, width_cm=7.0)
-doc.save('output/geometry.docx')
-print('output/geometry.docx')
-"@
+figures_from_manifest(sys.argv[2], doc, width_cm=7.0)
+doc.save(sys.argv[3])
+print(sys.argv[3])
+'@ $GEOM (Join-Path $FIGURES 'manifest.json') (Join-Path $EXAM 'Word/geometry.docx')
+if ($LASTEXITCODE -ne 0) { throw 'Word幾何圖匯出失敗' }
 ```
 
 ### 插入 PowerPoint
 
 ```powershell
-& $PY -c @"
+& $PY -c @'
 import sys
-sys.path.insert(0, r'$GEOM')
+sys.path.insert(0, sys.argv[1])
 from pptx import Presentation
 from insert_to_pptx import figures_from_manifest
 prs = Presentation()
-figures_from_manifest('output/figures/manifest.json', prs,
+figures_from_manifest(sys.argv[2], prs,
                       mode='individual', title_prefix='幾何圖形')
-prs.save('output/geometry.pptx')
-print('output/geometry.pptx')
-"@
+prs.save(sys.argv[3])
+print(sys.argv[3])
+'@ $GEOM (Join-Path $FIGURES 'manifest.json') (Join-Path $EXAM '簡報/geometry.pptx')
+if ($LASTEXITCODE -ne 0) { throw 'PowerPoint幾何圖匯出失敗' }
 ```
 
 ---
@@ -157,8 +166,8 @@ print('output/geometry.pptx')
 | `jh-math-exam` 填充題 | `fill_{題號}_fig` |
 | `jh-math-exam` 非選大題 | `open_{題號}_fig` |
 | `jh-math-exam` 非選子題 | `open_{題號}_{子題號}_fig` |
-| `jh-math-context-questions` 大題 | `q{題號}_main` |
-| `jh-math-context-questions` 子題 | `q{題號}_sub1` / `q{題號}_sub2` |
+| `jh-math-context-questions` 大題 | `open_{題號}_fig` |
+| `jh-math-context-questions` 子題 | `open_{題號}_{子題號}_fig` |
 
 其他技能自行呼叫時，只要產生 spec JSON 後執行 Step 3 即可。
 

@@ -125,15 +125,15 @@ description: 教學素材小遊戲產生器。當使用者上傳教材（PDF、�
 
 ## Step 6：輸出檔案
 
-把所有 HTML 寫到**當前工作目錄的 `output\`**：
+每次製作獨立存入 `output/小遊戲-{單元}-{版本}/`，不要把網頁與考卷檔案混在output根目錄。
 
+```powershell
+$GAME = Join-Path (Join-Path (Get-Location).Path 'output') '小遊戲-{單元}-{版本}'
+$WEB = Join-Path $GAME '網頁'
+New-Item -ItemType Directory -Force $WEB | Out-Null
 ```
-output\
-├── index.html                  # 總索引頁（含所有遊戲的 QR Code）
-├── game-01-[重點名].html
-├── game-02-[重點名].html
-└── ...
-```
+
+將名稱占位符換成當次單元及版本。`網頁/` 放index.html及game-01等頁面，`來源資料/` 放教材萃取，`驗收紀錄/` 放檢查及截圖，`歷史版本/` 放舊稿；根目錄另附檔案索引。
 
 先在對話中回報路徑，讓使用者可以先本機開啟測試——遊戲頁完全離線可用，不發佈也能玩。
 
