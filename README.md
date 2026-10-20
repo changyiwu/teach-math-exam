@@ -13,36 +13,36 @@
 
 | 技能 | 用途 | 額外檔案 |
 |------|------|----------|
-| [`jh-math-exam`](skills/jh-math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
-| [`jh-math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學生活情境非選題命題，兩小題式理解／應用／分析題；共用現行題目格式及B4雙欄分卷，解析保留供驗算。 | — |
-| [`jh-math-geometry`](skills/jh-math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
-| [`teaching-minigames`](skills/teaching-minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
+| [`math-exam`](skills/jh-math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
+| [`math-context-questions`](skills/jh-math-context-questions/SKILL.md) | 國中數學生活情境非選題命題，兩小題式理解／應用／分析題；共用現行題目格式及B4雙欄分卷，解析保留供驗算。 | — |
+| [`math-geometry`](skills/jh-math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
+| [`minigames`](skills/teaching-minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
 
 ### 技能之間的相依
 
 ```
-jh-math-exam ──────────┬──> jh-math-geometry   （幾何配圖）
+math-exam ──────────┬──> math-geometry   （幾何配圖）
                        │
-jh-math-context-questions ──> jh-math-exam     （共用 Word 匯出與 OMML 轉換）
-                       └──> jh-math-geometry   （幾何配圖）
-                       └──> agent-draw（選配） （情境氛圍圖）
+math-context-questions ──> math-exam     （共用 Word 匯出與 OMML 轉換）
+                       └──> math-geometry   （幾何配圖）
+                       └──> draw（選配） （情境氛圍圖）
 ```
 
 `generate_exam_docx.py` 與 `math_omml.py` 放在 `jh-math-exam/scripts/` 底下，
-兩個出題技能共用同一份，避免各自維護一份而分叉。**使用情境非選題技能請一併安裝 `jh-math-exam`。**
+兩個出題技能共用同一份，避免各自維護一份而分叉。**使用情境非選題技能請一併安裝 `math-exam`。**
 
 ---
 
 ## 🚀 安裝
 
 ```bash
-git clone https://github.com/changyiwu/teaching-exam-skills.git
+git clone https://github.com/changyiwu/teach-math-exam.git
 ```
 
 安裝到 Claude Code 的個人技能目錄（Windows 與 macOS 同一行指令）：
 
 ```powershell
-Copy-Item teaching-exam-skills/skills/* (Join-Path $HOME '.claude/skills') -Recurse -Force
+Copy-Item teach-math-exam/skills/* (Join-Path $HOME '.claude/skills') -Recurse -Force
 ```
 
 ---
@@ -53,8 +53,8 @@ Copy-Item teaching-exam-skills/skills/* (Join-Path $HOME '.claude/skills') -Recu
 |------|------|
 | **Python 環境** | 沿用 `file-toolkit` 技能的共用環境（Windows：`%LOCALAPPDATA%\file-toolkit\.venv`；macOS：`~/.local/share/file-toolkit/.venv`）。各技能的 Step 0 會呼叫 `ensure_env.ps1` 自動建立，含 `python-docx`、`lxml`、`pillow` 等。 |
 | **SVG → PNG** | 依序嘗試 cairosvg → **Edge/Chrome headless** → Inkscape。Windows 上 cairosvg 裝不起來，實際走瀏覽器截圖；macOS 上 cairosvg（`brew install cairo`）通常是主力，瀏覽器那條會去 `/Applications` 找。三者皆無時會明確報錯，不會默默只產 SVG。 |
-| **GitHub 發佈** | `teaching-minigames` 使用 GitHub CLI（Windows `winget install --id GitHub.cli`／macOS `brew install gh`，之後 `gh auth login`）。**不需要 Personal Access Token。** |
-| **生圖**（選配） | `jh-math-context-questions` 的情境插圖需要 `agent-draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
+| **GitHub 發佈** | `minigames` 使用 GitHub CLI（Windows `winget install --id GitHub.cli`／macOS `brew install gh`，之後 `gh auth login`）。**不需要 Personal Access Token。** |
+| **生圖**（選配） | `math-context-questions` 的情境插圖需要 `draw` 技能；沒有時會自動略過，幾何圖不受影響。 |
 
 所有產出一律寫到**當前工作目錄的 `output/`**。
 完整考卷按場次存入 `output/{學年度}-{學期}-{段考次別}-{年級數字}年級/`，年級數字1／2／3對應七／八／九年級，例如 `115-1-3-1年級`。

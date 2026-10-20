@@ -1,5 +1,5 @@
 ---
-name: jh-math-exam
+name: math-exam
 description: >
   國中數學段考出題與審題專家技能。當使用者需要為國中數學（七年級、八年級、九年級）設計段考試題、審核試題品質、
   建立雙向細目表、分析題目認知層次分佈，或產出完整格式的題目卷與答案卷時，請一定要使用此技能。
@@ -31,9 +31,9 @@ description: >
 ```powershell
 $SKILLS = Join-Path $HOME '.claude/skills'
 $PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
-$SKILL = Join-Path $SKILLS 'jh-math-exam'
+$SKILL = Join-Path $SKILLS 'math-exam'
 if (-not (Test-Path (Join-Path $SKILL 'scripts/generate_exam_docx.py'))) {
-    throw "找不到技能腳本，請確認 jh-math-exam 已正確安裝：$SKILL"
+    throw "找不到技能腳本，請確認 math-exam 已正確安裝：$SKILL"
 }
 New-Item -ItemType Directory -Force "./output" | Out-Null
 Write-Output "Python：$PY"
@@ -169,7 +169,7 @@ A _ 次｜B _ 次｜C _ 次｜D _ 次
 - **`expected_counts`**：如 `{"mc":10,"fill":10,"open":5}`，用來核對預定題數；計算題改為 4 題時同步修改
 - **`scope_sections`**：允許使用的完整節次名稱，逐題比對，避免歸錯章節；題意是否真的符合該單元仍須人工審查
 - **`geometry`**：不需要圖形時設為 `null`。可放在選擇題每題、非選大題（整題共用一圖）
-  或子題（各自有圖）。參數見 `references/figure-catalog.md`（jh-math-geometry 技能）
+  或子題（各自有圖）。參數見 `references/figure-catalog.md`（math-geometry 技能）
 - **`bloom_level`**：非選擇題必須填在**每個子題**上，大題層級不填
 
 ### 審題模式額外欄位
@@ -215,7 +215,7 @@ if ($LASTEXITCODE -ne 0) { throw "題號、選項、單元或配分檢查失敗"
 掃描 `exam_data.json`，若任何題目的 `geometry` 不為 `null`：
 
 ```powershell
-$GEOM = Join-Path $HOME '.claude/skills/jh-math-geometry/scripts'
+$GEOM = Join-Path $HOME '.claude/skills/math-geometry/scripts'
 
 # 從 exam_data.json 抽出所有 geometry spec
 & $PY -c @'
@@ -347,7 +347,7 @@ if ($LASTEXITCODE -ne 0) { throw "考卷匯出失敗" }
 | 結構檢查、獨立驗算與教材對照紀錄 | `references/verification.md` |
 | 官方國中課綱條文、備註與命題限制，網路題必讀 | `references/national-math-curriculum.md`；公式或萃取疑義回查其連結的原PDF |
 | 康軒三年章節、教學安排與課綱代碼對照，不取代官方備註 | `references/jh-math-curriculum.md` |
-| 幾何圖形完整參數與範例 | `jh-math-geometry` 技能的 `references/figure-catalog.md` |
+| 幾何圖形完整參數與範例 | `math-geometry` 技能的 `references/figure-catalog.md` |
 
 原始檔（`.pdf` / `.doc` / `.docx`）同目錄保留供人工核對，但 Read 工具讀不了舊版
 `.doc`，**請一律讀上表的 `.md` 版本**。

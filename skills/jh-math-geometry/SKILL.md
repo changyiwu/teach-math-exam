@@ -1,5 +1,5 @@
 ---
-name: jh-math-geometry
+name: math-geometry
 description: >
   國中數學幾何圖形 SVG 產生器。當任何情境需要生成或繪製國中數學幾何圖形時，請一定要使用此技能。
 
@@ -7,7 +7,7 @@ description: >
   「畫三角形的重心/外心/內心」、「畫等腰梯形」、「畫四角柱」、「畫一次函數/拋物線的圖形」、
   「幫我畫幾何圖、產生幾何圖、繪製幾何圖形」等。
 
-  【被其他技能呼叫觸發情境】出題技能（jh-math-exam、jh-math-context-questions）需要幾何題配圖時；
+  【被其他技能呼叫觸發情境】出題技能（math-exam、math-context-questions）需要幾何題配圖時；
   教學簡報技能需要幾何插圖時；任何需要圖形素材的技能皆可呼叫此技能。
 
   支援圖形類型（含標籤/代號/刻度/角弧等全套標記）：
@@ -17,7 +17,7 @@ description: >
   圖形可匯出至 Word（.docx）或 PowerPoint（.pptx）。
 ---
 
-# 國中數學幾何圖形技能（jh-math-geometry）
+# 國中數學幾何圖形技能（math-geometry）
 
 產生適合試卷、簡報、教材的幾何 SVG，並轉為 PNG 供插入 Word 或 PowerPoint。
 
@@ -28,9 +28,9 @@ description: >
 ```powershell
 $SKILLS = Join-Path $HOME '.claude/skills'
 $PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
-$GEOM = Join-Path $SKILLS 'jh-math-geometry/scripts'
+$GEOM = Join-Path $SKILLS 'math-geometry/scripts'
 if (-not (Test-Path (Join-Path $GEOM 'geometry_renderer.py'))) {
-    throw "找不到技能腳本，請確認 jh-math-geometry 已正確安裝：$GEOM"
+    throw "找不到技能腳本，請確認 math-geometry 已正確安裝：$GEOM"
 }
 # 被出題技能呼叫時沿用當次 $EXAM；獨立製圖另建以主題及版本命名的資料夾。
 if (-not (Get-Variable EXAM -ErrorAction SilentlyContinue)) {
@@ -157,17 +157,17 @@ if ($LASTEXITCODE -ne 0) { throw 'PowerPoint幾何圖匯出失敗' }
 
 ## 被其他技能呼叫
 
-`jh-math-exam` 與 `jh-math-context-questions` 已把渲染步驟寫進各自的流程，
+`math-exam` 與 `math-context-questions` 已把渲染步驟寫進各自的流程，
 圖形 id 有固定命名規則供匯出腳本對應回題目：
 
 | 呼叫端 | id 命名規則 |
 |--------|------------|
-| `jh-math-exam` 選擇題 | `mc_{題號}_fig` |
-| `jh-math-exam` 填充題 | `fill_{題號}_fig` |
-| `jh-math-exam` 非選大題 | `open_{題號}_fig` |
-| `jh-math-exam` 非選子題 | `open_{題號}_{子題號}_fig` |
-| `jh-math-context-questions` 大題 | `open_{題號}_fig` |
-| `jh-math-context-questions` 子題 | `open_{題號}_{子題號}_fig` |
+| `math-exam` 選擇題 | `mc_{題號}_fig` |
+| `math-exam` 填充題 | `fill_{題號}_fig` |
+| `math-exam` 非選大題 | `open_{題號}_fig` |
+| `math-exam` 非選子題 | `open_{題號}_{子題號}_fig` |
+| `math-context-questions` 大題 | `open_{題號}_fig` |
+| `math-context-questions` 子題 | `open_{題號}_{子題號}_fig` |
 
 其他技能自行呼叫時，只要產生 spec JSON 後執行 Step 3 即可。
 

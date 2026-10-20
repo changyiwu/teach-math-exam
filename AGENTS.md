@@ -1,4 +1,4 @@
-# teaching-exam-skills（專案藍圖）
+# teach-math-exam（專案藍圖）
 
 > 本檔為跨 Agent 通用的專案藍圖（AGENTS.md 開放標準）。任何 Agent 的每個 session 都應先讀本檔＋`handoff.md`。
 
@@ -7,13 +7,13 @@
 
 ## 關鍵時程
 - 2026-07-15：將預設分支切換為 main，完成康軒課綱 references 檔名與內文同步
-- 2026-07-22：對齊最新 project-init 規範，調整 Obsidian 專案駕駛艙筆記位置與檔名 (`teaching-exam-skills/專案工作流程.md`)
+- 2026-07-22：對齊最新 project-init 規範，調整 Obsidian 專案駕駛艙筆記位置與檔名 (`teach-math-exam/專案工作流程.md`)
 - 2026-08-06：補齊缺失的 Word 匯出腳本、全面 Windows 化、執行環境鎖定 Claude Code
 
 ## 目標與路線圖
-- [x] 階段一：建立段考命題 (`jh-math-exam`)、情境非選 (`jh-math-context-questions`)、幾何配圖 (`jh-math-geometry`) 與評量遊戲 (`teaching-minigames`) 四項 Agent Skills
+- [x] 階段一：建立段考命題 (`math-exam`)、情境非選 (`math-context-questions`)、幾何配圖 (`math-geometry`) 與評量遊戲 (`minigames`) 四項 Agent Skills
 - [x] 階段二：切換預設分支至 `main` 並完成課綱單元命名與 references 檔名同步
-- [x] 階段三：根據最新 project-init 規範，調整 Obsidian 專案駕駛艙筆記檔名與位置（`teaching-exam-skills/專案工作流程.md`），並升級專案至 L3 三層級架構
+- [x] 階段三：根據最新 project-init 規範，調整 Obsidian 專案駕駛艙筆記檔名與位置（`teach-math-exam/專案工作流程.md`），並升級專案至 L3 三層級架構
 - [x] 階段四：補寫 `generate_exam_docx.py`（OMML 數學式）、移除全部沙箱路徑改為 PowerShell、
       SVG 轉檔加 Edge fallback、QR 改內嵌離線產生器、發佈改走 gh CLI、參考檔轉 Markdown
 - [ ] 階段五：持續優化試題生成 prompt 範本與幾何 SVG 圖像品質
@@ -31,7 +31,7 @@
     - `scripts/math_omml.py`：`{}` 數學標記 → Word OMML 轉換
     - `scripts/exam_validation.py`：兩個出題技能共用的題號／配分／題圖檢查與驗算報告核對
     - `references/*.md`：Bloom 準則、細目表結構、版面規格、課綱（原始 .doc/.pdf 同目錄保留）
-  - `jh-math-context-questions/`：情境素養非選擇題生成技能（Word 匯出借用 jh-math-exam）
+  - `jh-math-context-questions/`：情境素養非選擇題生成技能（Word 匯出借用 math-exam）
   - `jh-math-geometry/`：幾何命題與 SVG 配圖技能
     - `references/figure-catalog.md`：**幾何參數的唯一來源**
   - `teaching-minigames/`：形成性評量小遊戲生成技能
@@ -44,8 +44,8 @@
 | 層級 | 平台 | 位置 | 讀取時機 |
 |------|------|------|---------|
 | L1 | 本地（GDrive） | `AGENTS.md`＋`handoff.md` | 每個 session |
-| L2 | GitHub | changyiwu/teaching-exam-skills | 指定時 |
-| L3 | Obsidian | teaching-exam-skills/專案工作流程.md | 有需要時 |
+| L2 | GitHub | changyiwu/teach-math-exam | 指定時 |
+| L3 | Obsidian | teach-math-exam/專案工作流程.md | 有需要時 |
 
 ## 三個檔案的職責（依「時效性」分家，不是依「詳細程度」）
 
@@ -68,7 +68,7 @@
 - Windows 指令優先使用 PowerShell 語法
 - 修改前先確認計畫，優先保留原有資料結構
 - 不把每日流水帳寫進本檔
-- Obsidian MCP 一律使用**相對路徑** `teaching-exam-skills/專案工作流程.md`，不要寫成 vault 絕對路徑
+- Obsidian MCP 一律使用**相對路徑** `teach-math-exam/專案工作流程.md`，不要寫成 vault 絕對路徑
 
 ## 技能開發約定
 
@@ -95,8 +95,8 @@
 - **完整考卷依場次集中**：使用 `output/{學年度}-{學期}-{段考次別}-{年級數字}年級/`，年級數字1／2／3對應七／八／九年級；當次另有指定名稱時從其指定。內分 `Word/`、`PDF/`、`命題資料/`、`來源資料/`、`驗收紀錄/`、`歷史版本/`，根目錄只留檔案索引及整套考卷壓縮檔。定稿JSON、驗算與重建程式放命題資料，教材萃取與配圖放來源資料；舊稿移入歷史版本。跨場次的研究與技能測試放 `output/開發與研究/`，暫存放 `output/暫存/`；搬移後更新路徑並驗證可重建，不刪除未經同意的舊稿。
 - **舊流程退出執行入口**：歷史稿與原始證據保留，退休腳本改為 `.py.txt`／`.ps1.txt`／`.cjs.txt` 並列退休清單，避免再次執行舊修改流程。獨立情境卷、幾何圖、小遊戲各建主題及版本資料夾；遊戲發佈只取當次 `網頁/`，不把output根目錄或教材上傳。
 - **組路徑一律 `Join-Path`，不要把變數直接接上反斜線**。`"$HOME" + 反斜線 + ".claude"` 這種寫法在 macOS 上會組出一個名字裡帶反斜線的項目，
-  `Test-Path` 靜默回 `False`，技能只會說「找不到腳本」。完整說明見 `cross-device-agent-skills/platform.md` 第 5 坑，
-  `python ../cross-device-agent-skills/tools/check-platform.py .` 會擋住它長回來
+  `Test-Path` 靜默回 `False`，技能只會說「找不到腳本」。完整說明見 `agent-project-flow/platform.md` 第 5 坑，
+  `python ../agent-project-flow/tools/check-platform.py .` 會擋住它長回來
 - **腳本共用不複製**：`generate_exam_docx.py`／`math_omml.py` 只放在 `jh-math-exam/scripts/`，
   其他技能透過絕對路徑呼叫。同一份邏輯不要在兩個技能各留一份
 - **參數表只留一份**：幾何參數的唯一來源是 `jh-math-geometry/references/figure-catalog.md`，

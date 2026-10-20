@@ -1,7 +1,7 @@
 # 幾何圖形參數目錄（figure-catalog.md）
 
-本文件是所有圖形類型與參數的**唯一來源**。命題技能（`jh-math-exam`、
-`jh-math-context-questions`）的 SKILL.md 只保留 type 對照表，需要寫 `geometry.spec`
+本文件是所有圖形類型與參數的**唯一來源**。命題技能（`math-exam`、
+`math-context-questions`）的 SKILL.md 只保留 type 對照表，需要寫 `geometry.spec`
 時一律讀本檔。
 
 ---
@@ -413,7 +413,7 @@
 
 ---
 
-## 情境題常用（`jh-math-context-questions`）
+## 情境題常用（`math-context-questions`）
 
 ### 矩形土地／建築
 ```json
