@@ -9,7 +9,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
-SCRIPTS = Path(__file__).resolve().parents[1] / 'skills/jh-math-geometry/scripts'
+SCRIPTS = Path(__file__).resolve().parents[1] / 'skills/math-geometry/scripts'
 sys.path.insert(0, str(SCRIPTS))
 from geometry_renderer import render_figure
 

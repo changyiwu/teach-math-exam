@@ -8,8 +8,8 @@ description: >
 
 # 國中數學生活情境非選擇題
 
-先讀共用 `jh-math-exam/references/exam-template.md` 及 `question-schema.md`。
-本技能負責情境與小題設計，環境、資料夾、配圖、驗算及匯出一律沿用 `jh-math-exam/SKILL.md`，不另維護排版腳本。
+先讀共用 `math-exam/references/exam-template.md` 及 `question-schema.md`。
+本技能負責情境與小題設計，環境、資料夾、配圖、驗算及匯出一律沿用 `math-exam/SKILL.md`，不另維護排版腳本。
 
 ## 需求及資料夾
 
@@ -59,7 +59,7 @@ description: >
 
 ## 配圖與插圖
 
-幾何參數依 `jh-math-geometry/references/figure-catalog.md`，共用技能Step 6直接萃取並渲染同一份JSON。
+幾何參數依 `math-geometry/references/figure-catalog.md`，共用技能Step 6直接萃取並渲染同一份JSON。
 大題圖為 `open_{題號}_fig`，小題圖為 `open_{題號}_{小題號}_fig`，存入 `$FIGURES`；按實際插入尺寸檢查標籤及條件。
 需要氣氛插圖時使用 `draw`，放在當次 `來源資料/情境插圖/`；不以插圖代替精確幾何圖。
 共用匯出器僅自動插入 `geometry`，不支援的裝飾插圖留作另附素材，不宣稱已嵌入正式卷。

@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/jh-math-exam/scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'skills/math-exam/scripts'))
 from exam_validation import (ExamValidationError, exam_digest, official_curriculum_index,
                              source_question_digest, validate_exam, validate_web_curriculum)
 from test_exam_planning_and_layout import planned_exam
@@ -55,7 +55,7 @@ class CurriculumReviewTests(unittest.TestCase):
         data['fill_questions'][-1]['provenance']['approval']=dict(
             status='approved',question_sha256=source_question_digest(data,'fill_5'),
             user_confirmation='測試用的使用者同意紀錄')
-        generator=Path(__file__).resolve().parents[1]/'skills/jh-math-exam/scripts/generate_exam_docx.py'
+        generator=Path(__file__).resolve().parents[1]/'skills/math-exam/scripts/generate_exam_docx.py'
         with tempfile.TemporaryDirectory() as folder:
             src=Path(folder)/'exam.json';src.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8')
             out=Path(folder)/'Word'

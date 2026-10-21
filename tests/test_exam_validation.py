@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPTS = Path(__file__).resolve().parents[1]/'skills/jh-math-exam/scripts'
+SCRIPTS = Path(__file__).resolve().parents[1]/'skills/math-exam/scripts'
 sys.path.insert(0, str(SCRIPTS))
 from exam_validation import (ExamValidationError, validate_exam, mc_points, leaf_questions,
                              write_math_report, validate_math_report)

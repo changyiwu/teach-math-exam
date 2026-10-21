@@ -23,7 +23,7 @@
 - `LICENSE`：MIT 開源授權條款
 - `.gitignore`：Git 忽略清單
 - `skills/`： Agent Skills 核心邏輯
-  - `jh-math-exam/`：段考命題與審題技能
+  - `math-exam/`：段考命題與審題技能
     - `references/exam-template.md`：完整段考命題的預設範本入口
     - `references/question-schema.md`：段考與獨立情境卷共用的題目格式及題圖id
     - `assets/exam-template.json`：可複製的100分空白資料範本，教材與實際題目另存當次 `output/`
@@ -31,10 +31,10 @@
     - `scripts/math_omml.py`：`{}` 數學標記 → Word OMML 轉換
     - `scripts/exam_validation.py`：兩個出題技能共用的題號／配分／題圖檢查與驗算報告核對
     - `references/*.md`：Bloom 準則、細目表結構、版面規格、課綱（原始 .doc/.pdf 同目錄保留）
-  - `jh-math-context-questions/`：情境素養非選擇題生成技能（Word 匯出借用 math-exam）
-  - `jh-math-geometry/`：幾何命題與 SVG 配圖技能
+  - `math-context-questions/`：情境素養非選擇題生成技能（Word 匯出借用 math-exam）
+  - `math-geometry/`：幾何命題與 SVG 配圖技能
     - `references/figure-catalog.md`：**幾何參數的唯一來源**
-  - `teaching-minigames/`：形成性評量小遊戲生成技能
+  - `minigames/`：形成性評量小遊戲生成技能
     - `references/qr-inline.md`：內嵌離線 QR 產生器
 - `AGENTS.md`：專案藍圖（本檔）
 - `handoff.md`：交接檔
@@ -73,11 +73,11 @@
 
 ## 技能開發約定
 
-- **官方課綱與網路題**：官方數學領域PDF置於 `skills/jh-math-exam/references/`，可讀國中萃取版為 `national-math-curriculum.md`。網路題逐題核對官方學習內容、學習表現、備註限制及當次已教範圍，包含選項與完整解法；不得只依題庫標籤、康軒架構表或使用者同意判定符合課綱。含網路題正式匯出須有獨立 `--curriculum-report`，保留代碼、PDF頁碼與實際核對理由，並綁定題目與官方PDF版本。超綱題改編後重新驗算、送審，否則排除；程式只檢查紀錄與版本，不能冒充語意審查。
+- **官方課綱與網路題**：官方數學領域PDF置於 `skills/math-exam/references/`，可讀國中萃取版為 `national-math-curriculum.md`。網路題逐題核對官方學習內容、學習表現、備註限制及當次已教範圍，包含選項與完整解法；不得只依題庫標籤、康軒架構表或使用者同意判定符合課綱。含網路題正式匯出須有獨立 `--curriculum-report`，保留代碼、PDF頁碼與實際核對理由，並綁定題目與官方PDF版本。超綱題改編後重新驗算、送審，否則排除；程式只檢查紀錄與版本，不能冒充語意審查。
 
-- **題目卷審題版**：完整段考另附B4直式雙欄審題版，每題依序列本次題目、來源與原題、重點分類（單元／主重點／Bloom／配分）。課本與習作列印刷頁碼、PDF頁碼及題號；網路列網址、題號或段落。實際回查原文；能力點原創的後補教材對照不得虛稱直接來源。以獨立來源JSON綁定題目版本，規格見 `skills/jh-math-exam/references/question-review.md`。
+- **題目卷審題版**：完整段考另附B4直式雙欄審題版，每題依序列本次題目、來源與原題、重點分類（單元／主重點／Bloom／配分）。課本與習作列印刷頁碼、PDF頁碼及題號；網路列網址、題號或段落。實際回查原文；能力點原創的後補教材對照不得虛稱直接來源。以獨立來源JSON綁定題目版本，規格見 `skills/math-exam/references/question-review.md`。
 
-- **命題範本入口**：兩個出題技能先讀 `skills/jh-math-exam/references/exam-template.md` 及 `question-schema.md`，複製 `assets/exam-template.json` 後填入當次教材與題目；以現行匯出器產出題目卷、學生答案卷、教師答案卷、題目卷審題版及雙向細目表，不固定沿用示範卷的年級、範圍或頁數。情境題統一使用 `open_questions/sub_questions`，停用舊 `questions/sub1/sub2` 格式及A4題解合併文件。每個作答單位明列配分，正式匯出必備範圍／題數、來源／主重點規劃及審題來源；CLI輸出明確指定當次 `Word/`，不接受平鋪或直接指定DOCX。
+- **命題範本入口**：兩個出題技能先讀 `skills/math-exam/references/exam-template.md` 及 `question-schema.md`，複製 `assets/exam-template.json` 後填入當次教材與題目；以現行匯出器產出題目卷、學生答案卷、教師答案卷、題目卷審題版及雙向細目表，不固定沿用示範卷的年級、範圍或頁數。情境題統一使用 `open_questions/sub_questions`，停用舊 `questions/sub1/sub2` 格式及A4題解合併文件。每個作答單位明列配分，正式匯出必備範圍／題數、來源／主重點規劃及審題來源；CLI輸出明確指定當次 `Word/`，不接受平鋪或直接指定DOCX。
 - **答案表不可拆組**：學生與教師答案表每5題的題號列、答案列須以同一不可拆分區塊一起換欄／換頁；驗收時檢查填充題最後一組，不能只設定各列不跨頁。
 - **校名預設留白**：範例及正式輸出的各版考卷、雙向細目表一律預設「＿＿＿＿國中」；只有使用者明確提供校名才填入 `school_name`，不可沿用範例原校名。
 - **段考預設配置**：選擇 10 題×4分、填充 10 題×4分、計算 5 題×4分；計算題也可指定為 4 題×5分，總分100分。原創題目不得沿用課本或習作原題的完整數值組合；拿到教材時保留能力點與原題比對紀錄
@@ -98,16 +98,16 @@
 - **組路徑一律 `Join-Path`，不要把變數直接接上反斜線**。`"$HOME" + 反斜線 + ".claude"` 這種寫法在 macOS 上會組出一個名字裡帶反斜線的項目，
   `Test-Path` 靜默回 `False`，技能只會說「找不到腳本」。完整說明見 `agent-project-flow/platform.md` 第 5 坑，
   `python ../agent-project-flow/tools/check-platform.py .` 會擋住它長回來
-- **腳本共用不複製**：`generate_exam_docx.py`／`math_omml.py` 只放在 `jh-math-exam/scripts/`，
+- **腳本共用不複製**：`generate_exam_docx.py`／`math_omml.py` 只放在 `math-exam/scripts/`，
   其他技能透過絕對路徑呼叫。同一份邏輯不要在兩個技能各留一份
-- **參數表只留一份**：幾何參數的唯一來源是 `jh-math-geometry/references/figure-catalog.md`，
+- **參數表只留一份**：幾何參數的唯一來源是 `math-geometry/references/figure-catalog.md`，
   SKILL.md 只保留 type 對照表並指向它
 - **參考檔要有 `.md` 版**：Read 工具開不了 `.doc`／`.docx`，凡是 SKILL.md 叫 agent「讀取」的
   參考資料都必須有 Markdown 萃取版，原始檔僅供人工核對
 - **失敗要響**：外部工具找不到、轉檔後端不可用、圖檔對不上題號時一律報錯並回傳非 0，
   不可印個警告就繼續往下跑
 - **遊戲頁完全離線**：不得引用任何外部網域（CDN、字型、QR 服務）。
-  QR 用 `teaching-minigames/references/qr-inline.md` 的內嵌產生器
+  QR 用 `minigames/references/qr-inline.md` 的內嵌產生器
 - **GitHub 操作走 `gh` CLI**，不要向使用者索取 Personal Access Token
 - **四邊形頂點方位**：A 左下、B 右下、C 右上、D 左上。梯形的平行邊是 **AB 與 DC**，
   題幹寫「AB∥DC」；寫成「AD∥BC」會與 renderer 產出的圖矛盾

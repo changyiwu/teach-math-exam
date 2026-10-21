@@ -9,7 +9,7 @@ from docx import Document
 from docx.oxml.ns import qn
 from lxml import etree
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'skills/jh-math-exam/scripts'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'skills/math-exam/scripts'))
 from exam_validation import validate_exam, ExamValidationError, source_question_digest
 from generate_exam_docx import (exam_header, build_exam_paper, build_student_answer_paper,
                                 build_answer_paper, Figures, validate_question_review_sources,

@@ -27,7 +27,7 @@
 
 選擇、填充題，大題與小題都可附`geometry`，不需要時省略或設`null`。
 其中`spec`包含`type`、`config`及`canvas`，`caption`為圖說。
-參數唯一來源是`jh-math-geometry/references/figure-catalog.md`；數學式以`{}`標記，語法見技能入口。
+參數唯一來源是`math-geometry/references/figure-catalog.md`；數學式以`{}`標記，語法見技能入口。
 
 | 作答或配圖位置 | 驗算／來源題號 | 圖檔id |
 |---|---|---|
