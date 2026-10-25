@@ -2,10 +2,10 @@
 
 一組可重用的 **Agent Skills**，專注於**國中數學命題、審題、幾何配圖與形成性評量小遊戲**。
 每個技能皆為獨立資料夾，內含一份 `SKILL.md`（含 YAML frontmatter 描述觸發時機），
-可供 Claude Code 或任何支援 Agent Skills 規格的 AI agent 直接讀取使用。
+放在專案層級技能目錄 `.agents/skills/`，Claude Code、Codex、OpenCode、Antigravity 都能在本專案內使用。
 
 > 所有技能皆以**繁體中文**設計，題目對齊修訂版 Bloom 認知層次。
-> 執行環境為 **Claude Code，支援 Windows 與 macOS**（PowerShell 7）。
+> 執行環境為 **Claude Code／Codex／OpenCode／Antigravity，支援 Windows 與 macOS**（PowerShell 7）。
 
 ---
 
@@ -13,10 +13,10 @@
 
 | 技能 | 用途 | 額外檔案 |
 |------|------|----------|
-| [`math-exam`](skills/math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
-| [`math-context-questions`](skills/math-context-questions/SKILL.md) | 國中數學生活情境非選題命題，兩小題式理解／應用／分析題；共用現行題目格式及B4雙欄分卷，解析保留供驗算。 | — |
-| [`math-geometry`](skills/math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
-| [`minigames`](skills/minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
+| [`math-exam`](.agents/skills/math-exam/SKILL.md) | 國中數學段考出題與審題。設計七/八/九年級段考試題、審題、雙向細目表、Bloom 層次分析，產出 B4 標準版面的題目卷與答案卷（數學式為 Word OMML）。 | `scripts/`、`references/` |
+| [`math-context-questions`](.agents/skills/math-context-questions/SKILL.md) | 國中數學生活情境非選題命題，兩小題式理解／應用／分析題；共用現行題目格式及B4雙欄分卷，解析保留供驗算。 | — |
+| [`math-geometry`](.agents/skills/math-geometry/SKILL.md) | 國中數學幾何圖形 SVG 產生器。三角形、四邊形（可畫高）、圓、坐標平面、立體圖、三角形三心等，可匯出 Word／PPT。可被出題技能呼叫配圖。 | `scripts/`、`references/` |
+| [`minigames`](.agents/skills/minigames/SKILL.md) | 把教材重點轉成形成性評量小遊戲，發佈為可分享 HTML（內建離線 QR Code）。 | `references/` |
 
 ### 技能之間的相依
 
@@ -29,7 +29,7 @@ math-context-questions ──> math-exam     （共用 Word 匯出與 OMML 轉�
 ```
 
 `generate_exam_docx.py` 與 `math_omml.py` 放在 `math-exam/scripts/` 底下，
-兩個出題技能共用同一份，避免各自維護一份而分叉。**使用情境非選題技能請一併安裝 `math-exam`。**
+兩個出題技能共用同一份，避免各自維護一份而分叉。
 
 ---
 
@@ -39,11 +39,15 @@ math-context-questions ──> math-exam     （共用 Word 匯出與 OMML 轉�
 git clone https://github.com/changyiwu/teach-math-exam.git
 ```
 
-安裝到 Claude Code 的個人技能目錄（Windows 與 macOS 同一行指令）：
+不需要複製到全域技能目錄，在專案資料夾內啟動 Agent 即可：
 
-```powershell
-Copy-Item teach-math-exam/skills/* (Join-Path $HOME '.claude/skills') -Recurse -Force
-```
+| Agent | 載入方式 |
+|------|----------|
+| Codex／OpenCode／Antigravity | 自動載入專案的 `.agents/skills/` |
+| Claude Code | 不讀 `.agents/skills/`；透過 `CLAUDE.md` → `AGENTS.md` 的〈技能路由〉表讀取對應 SKILL.md |
+
+各技能的 Step 0 會從當前目錄往上找 `.agents/skills/` 定位腳本；
+Python 環境沿用全域技能 `file-toolkit`，需另外安裝在任一 Agent 的全域技能目錄。
 
 ---
 
@@ -61,12 +65,12 @@ Copy-Item teach-math-exam/skills/* (Join-Path $HOME '.claude/skills') -Recurse -
 每場分成 `Word/`、`PDF/`、`命題資料/`、`來源資料/`、`驗收紀錄/`、`歷史版本/`，根目錄附檔案索引及整套考卷壓縮檔。
 研究與技能測試另放 `output/開發與研究/`，暫存放 `output/暫存/`；各場次不共用或覆蓋命題資料。
 獨立情境卷、幾何圖與小遊戲也各建有主題及版本的資料夾；配圖存來源資料、遊戲HTML存當次網頁資料夾，不平鋪output根目錄。
-兩個出題技能共用 [題目資料格式](skills/math-exam/references/question-schema.md)；正式匯出拒絕舊情境格式、缺少逐題配分／全卷規劃／審題來源的資料，以及直接指定DOCX或平鋪目錄的舊用法。
+兩個出題技能共用 [題目資料格式](.agents/skills/math-exam/references/question-schema.md)；正式匯出拒絕舊情境格式、缺少逐題配分／全卷規劃／審題來源的資料，以及直接指定DOCX或平鋪目錄的舊用法。
 
 ## 段考預設與驗收
 
-完整命題從 [段考命題預設範本](skills/math-exam/references/exam-template.md) 開始，
-並複製 [100分空白JSON範本](skills/math-exam/assets/exam-template.json) 到當次考卷的 `命題資料/exam_data.json` 填寫。
+完整命題從 [段考命題預設範本](.agents/skills/math-exam/references/exam-template.md) 開始，
+並複製 [100分空白JSON範本](.agents/skills/math-exam/assets/exam-template.json) 到當次考卷的 `命題資料/exam_data.json` 填寫。
 範本整合本專案確認的配分、全卷重點分布、80／20來源、網路題審閱、四種考卷格式及驗收要求。
 
 未另行指定時：選擇題 10 題 × 4 分、填充題 10 題 × 4 分、計算題 5 題 × 4 分（可改為 4 題 × 5 分），總分 100 分。
@@ -74,14 +78,14 @@ Copy-Item teach-math-exam/skills/* (Join-Path $HOME '.claude/skills') -Recurse -
 命題前先列章內重點配分表；預設按配分80%取材自提供教材、20%取材自公開網路資料或題庫。
 兩類來源合併驗收全卷重點比例，不能各自配比後拼接。
 網路候選題需附完整題目、答案及來源，經使用者審閱同意才納入正式卷；改題後須重審。
-網路題另須符合[官方國中課綱條文與備註](skills/math-exam/references/national-math-curriculum.md)及當次已教範圍；正式匯出加 `--curriculum-report`，缺少有效的逐題核對紀錄即停止。官方原PDF已收在同目錄供回查。
+網路題另須符合[官方國中課綱條文與備註](.agents/skills/math-exam/references/national-math-curriculum.md)及當次已教範圍；正式匯出加 `--curriculum-report`，缺少有效的逐題核對紀錄即停止。官方原PDF已收在同目錄供回查。
 題目卷、學生答案卷、教師答案卷預設B4直式雙欄，未知數採Cambria Math斜體，數字係數後的乘號省略。
 學生答案卷包含選擇／填充題的空白答案表格及計算題作答空間；教師版只列答案。
-來源及重點規劃欄位見 [來源規劃](skills/math-exam/references/source-planning.md)。
+來源及重點規劃欄位見 [來源規劃](.agents/skills/math-exam/references/source-planning.md)。
 
 匯出器先檢查題號、選項、單元、題數與總分；缺分、矛盾配分或缺圖直接停止。
 正式匯出還需本份考卷的逐題驗算報告 `--math-report`，題目修改後舊報告失效。
-結構檢查不等於數學正確，方法與限制見 [驗收流程](skills/math-exam/references/verification.md)。
+結構檢查不等於數學正確，方法與限制見 [驗收流程](.agents/skills/math-exam/references/verification.md)。
 
 ---
 

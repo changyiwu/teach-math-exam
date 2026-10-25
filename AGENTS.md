@@ -16,13 +16,14 @@
 - [x] 階段三：根據最新 project-init 規範，調整 Obsidian 專案駕駛艙筆記檔名與位置（`teach-math-exam/專案工作流程.md`），並升級專案至 L3 三層級架構
 - [x] 階段四：補寫 `generate_exam_docx.py`（OMML 數學式）、移除全部沙箱路徑改為 PowerShell、
       SVG 轉檔加 Edge fallback、QR 改內嵌離線產生器、發佈改走 gh CLI、參考檔轉 Markdown
+- [x] 技能改放專案層級 `.agents/skills/`，四個 Agent 共用、不裝全域
 - [ ] 階段五：持續優化試題生成 prompt 範本與幾何 SVG 圖像品質
 
 ## 資料夾結構
 - `README.md`：專案說明文件
 - `LICENSE`：MIT 開源授權條款
 - `.gitignore`：Git 忽略清單
-- `skills/`： Agent Skills 核心邏輯
+- `.agents/skills/`：Agent Skills 核心邏輯（專案層級技能目錄，Codex／OpenCode／Antigravity 自動載入）
   - `math-exam/`：段考命題與審題技能
     - `references/exam-template.md`：完整段考命題的預設範本入口
     - `references/question-schema.md`：段考與獨立情境卷共用的題目格式及題圖id
@@ -36,8 +37,22 @@
     - `references/figure-catalog.md`：**幾何參數的唯一來源**
   - `minigames/`：形成性評量小遊戲生成技能
     - `references/qr-inline.md`：內嵌離線 QR 產生器
+- `tests/`：匯出器、驗收與幾何 renderer 的單元測試
 - `AGENTS.md`：專案藍圖（本檔）
 - `handoff.md`：交接檔
+
+## 技能路由（四個 Agent 共用）
+
+本專案四個技能**只放在專案內的 `.agents/skills/`，不安裝到任何 Agent 的全域技能目錄**。
+Codex、OpenCode、Antigravity 會自動載入；Claude Code 不讀 `.agents/skills/`，
+遇到下列情境時**先讀對應的 SKILL.md 再照做**（其他 Agent 沒自動觸發時也照此表）：
+
+| 情境 | 讀取 |
+|------|------|
+| 段考命題、審題、雙向細目表、Bloom 分級、題目卷／答案卷匯出 | `.agents/skills/math-exam/SKILL.md` |
+| 生活情境非選題、兩小題式應用／分析題、獨立情境卷 | `.agents/skills/math-context-questions/SKILL.md`（環境與匯出沿用 math-exam） |
+| 幾何圖形、題目配圖、坐標平面、立體圖 SVG | `.agents/skills/math-geometry/SKILL.md` |
+| 教材轉形成性評量小遊戲、可分享測驗網頁與 QR Code | `.agents/skills/minigames/SKILL.md` |
 
 ## 同步層級（本專案初始化至第 3 層級）
 
@@ -73,11 +88,11 @@
 
 ## 技能開發約定
 
-- **官方課綱與網路題**：官方數學領域PDF置於 `skills/math-exam/references/`，可讀國中萃取版為 `national-math-curriculum.md`。網路題逐題核對官方學習內容、學習表現、備註限制及當次已教範圍，包含選項與完整解法；不得只依題庫標籤、康軒架構表或使用者同意判定符合課綱。含網路題正式匯出須有獨立 `--curriculum-report`，保留代碼、PDF頁碼與實際核對理由，並綁定題目與官方PDF版本。超綱題改編後重新驗算、送審，否則排除；程式只檢查紀錄與版本，不能冒充語意審查。
+- **官方課綱與網路題**：官方數學領域PDF置於 `.agents/skills/math-exam/references/`，可讀國中萃取版為 `national-math-curriculum.md`。網路題逐題核對官方學習內容、學習表現、備註限制及當次已教範圍，包含選項與完整解法；不得只依題庫標籤、康軒架構表或使用者同意判定符合課綱。含網路題正式匯出須有獨立 `--curriculum-report`，保留代碼、PDF頁碼與實際核對理由，並綁定題目與官方PDF版本。超綱題改編後重新驗算、送審，否則排除；程式只檢查紀錄與版本，不能冒充語意審查。
 
-- **題目卷審題版**：完整段考另附B4直式雙欄審題版，每題依序列本次題目、來源與原題、重點分類（單元／主重點／Bloom／配分）。課本與習作列印刷頁碼、PDF頁碼及題號；網路列網址、題號或段落。實際回查原文；能力點原創的後補教材對照不得虛稱直接來源。以獨立來源JSON綁定題目版本，規格見 `skills/math-exam/references/question-review.md`。
+- **題目卷審題版**：完整段考另附B4直式雙欄審題版，每題依序列本次題目、來源與原題、重點分類（單元／主重點／Bloom／配分）。課本與習作列印刷頁碼、PDF頁碼及題號；網路列網址、題號或段落。實際回查原文；能力點原創的後補教材對照不得虛稱直接來源。以獨立來源JSON綁定題目版本，規格見 `.agents/skills/math-exam/references/question-review.md`。
 
-- **命題範本入口**：兩個出題技能先讀 `skills/math-exam/references/exam-template.md` 及 `question-schema.md`，複製 `assets/exam-template.json` 後填入當次教材與題目；以現行匯出器產出題目卷、學生答案卷、教師答案卷、題目卷審題版及雙向細目表，不固定沿用示範卷的年級、範圍或頁數。情境題統一使用 `open_questions/sub_questions`，停用舊 `questions/sub1/sub2` 格式及A4題解合併文件。每個作答單位明列配分，正式匯出必備範圍／題數、來源／主重點規劃及審題來源；CLI輸出明確指定當次 `Word/`，不接受平鋪或直接指定DOCX。
+- **命題範本入口**：兩個出題技能先讀 `.agents/skills/math-exam/references/exam-template.md` 及 `question-schema.md`，複製 `assets/exam-template.json` 後填入當次教材與題目；以現行匯出器產出題目卷、學生答案卷、教師答案卷、題目卷審題版及雙向細目表，不固定沿用示範卷的年級、範圍或頁數。情境題統一使用 `open_questions/sub_questions`，停用舊 `questions/sub1/sub2` 格式及A4題解合併文件。每個作答單位明列配分，正式匯出必備範圍／題數、來源／主重點規劃及審題來源；CLI輸出明確指定當次 `Word/`，不接受平鋪或直接指定DOCX。
 - **答案表不可拆組**：學生與教師答案表每5題的題號列、答案列須以同一不可拆分區塊一起換欄／換頁；驗收時檢查填充題最後一組，不能只設定各列不跨頁。
 - **校名預設留白**：範例及正式輸出的各版考卷、雙向細目表一律預設「＿＿＿＿國中」；只有使用者明確提供校名才填入 `school_name`，不可沿用範例原校名。
 - **段考預設配置**：選擇 10 題×4分、填充 10 題×4分、計算 5 題×4分；計算題也可指定為 4 題×5分，總分100分。原創題目不得沿用課本或習作原題的完整數值組合；拿到教材時保留能力點與原題比對紀錄
@@ -86,7 +101,7 @@
 - **來源預設80／20**：按配分計算，80%取材自使用者提供教材、20%取材自上網搜尋的公開資料或題庫，逐題保留檔案頁碼或網址及改編說明；兩類皆須改數值並核對課本、習作。網路候選題含來源、完整題目、答案與預計配置，必須先給使用者審閱，明確同意後才納入正式卷；改題後重新審閱。未提供教材或題目分數無法精確分成80／20時，明列缺口或可行比例，不假造來源。
 - **考卷排版**：題目卷、學生答案卷與教師答案卷預設 B4 直式、雙欄內文、欄距0.8cm，卷頭用跨欄頁首，題目緊接卷頭，不用分節切出空白首頁。選項對齊題號；填充題配分只列區段標題，續行懸掛縮排對齊題幹。學生答案卷的選擇／填充題用空白答案表格，計算題依序附完整題目與計算空間；教師版只列答案，解析留在驗算資料。細目表及審題報告維持A4單欄。數字係數接英文字母省略乘號（17×x→17x），數字乘數字保留；未知數使用 Cambria Math 斜體，包含普通文字與題圖標籤。
 
-- **執行環境鎖定 Claude Code；平台 Windows 與 macOS 皆支援**（一律 pwsh 7）。
+- **四個 Agent（Claude Code／Codex／OpenCode／Antigravity）都要能跑；平台 Windows 與 macOS 皆支援**（一律 pwsh 7）。
   SKILL.md 不得再出現 `/home/claude`、
   `/mnt/user-data/outputs`、`/mnt/skills/user`、`present_files`、`pip --break-system-packages`
   這類 claude.ai 沙箱專屬寫法
@@ -98,8 +113,12 @@
 - **組路徑一律 `Join-Path`，不要把變數直接接上反斜線**。`"$HOME" + 反斜線 + ".claude"` 這種寫法在 macOS 上會組出一個名字裡帶反斜線的項目，
   `Test-Path` 靜默回 `False`，技能只會說「找不到腳本」。完整說明見 `agent-project-flow/platform.md` 第 5 坑，
   `python ../agent-project-flow/tools/check-platform.py .` 會擋住它長回來
+- **技能不裝全域，腳本路徑以專案根為準**：不要用 skill-sync 把本專案技能複製到四個 Agent 的全域目錄，
+  也不要另建 `.claude/skills/` 副本或符號連結（雲端硬碟不同步符號連結）。SKILL.md 從當前目錄往上找
+  `.agents/skills/` 定位專案根，不得寫死 `~/.claude/skills/<本專案技能>`；只有全域技能 `file-toolkit`
+  依序在四個 Agent 的全域技能目錄尋找
 - **腳本共用不複製**：`generate_exam_docx.py`／`math_omml.py` 只放在 `math-exam/scripts/`，
-  其他技能透過絕對路徑呼叫。同一份邏輯不要在兩個技能各留一份
+  其他技能透過 `$SKILLS`（專案 `.agents/skills/`）呼叫。同一份邏輯不要在兩個技能各留一份
 - **參數表只留一份**：幾何參數的唯一來源是 `math-geometry/references/figure-catalog.md`，
   SKILL.md 只保留 type 對照表並指向它
 - **參考檔要有 `.md` 版**：Read 工具開不了 `.doc`／`.docx`，凡是 SKILL.md 叫 agent「讀取」的

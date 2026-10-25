@@ -26,12 +26,23 @@ description: >
 ## Step 0：準備環境
 
 ```powershell
-$SKILLS = Join-Path $HOME '.claude/skills'
-$PY = & (Join-Path $SKILLS 'file-toolkit/scripts/ensure_env.ps1') | Select-Object -Last 1
-$GEOM = Join-Path $SKILLS 'math-geometry/scripts'
-if (-not (Test-Path (Join-Path $GEOM 'geometry_renderer.py'))) {
-    throw "找不到技能腳本，請確認 math-geometry 已正確安裝：$GEOM"
+# 本技能只放在專案的 .agents/skills/（四個 Agent 共用），不裝到全域；從當前目錄往上找專案根。
+$ROOT = (Get-Location).Path
+while ($ROOT -and -not (Test-Path (Join-Path $ROOT '.agents/skills/math-geometry/SKILL.md'))) {
+    $ROOT = Split-Path $ROOT -Parent
 }
+if (-not $ROOT) { throw "找不到 .agents/skills/math-geometry，請在 teach-math-exam 專案內執行" }
+$SKILLS = Join-Path $ROOT '.agents/skills'
+$GEOM = Join-Path $SKILLS 'math-geometry/scripts'
+# file-toolkit 是全域技能，依序在四個 Agent 的全域技能目錄找
+$TOOLKIT = @(
+    (Join-Path $HOME '.claude/skills/file-toolkit'),
+    (Join-Path $HOME '.agents/skills/file-toolkit'),
+    (Join-Path $HOME '.config/opencode/skills/file-toolkit'),
+    (Join-Path $HOME '.gemini/config/skills/file-toolkit')
+) | Where-Object { Test-Path (Join-Path $_ 'scripts/ensure_env.ps1') } | Select-Object -First 1
+if (-not $TOOLKIT) { throw "找不到全域技能 file-toolkit（scripts/ensure_env.ps1）" }
+$PY = & (Join-Path $TOOLKIT 'scripts/ensure_env.ps1') | Select-Object -Last 1
 # 被出題技能呼叫時沿用當次 $EXAM；獨立製圖另建以主題及版本命名的資料夾。
 if (-not (Get-Variable EXAM -ErrorAction SilentlyContinue)) {
     $EXAM = Join-Path (Join-Path (Get-Location).Path 'output') '幾何圖-{主題}-{版本}'
